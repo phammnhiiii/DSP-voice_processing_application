@@ -1,11 +1,21 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Volume2, Download, Languages } from 'lucide-react';
+import { Volume2, Download, Languages, Upload, Mic } from 'lucide-react';
 import { GlowButton } from '../ui/GlowButton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Slider } from '../ui/slider';
 import { Textarea } from '../ui/textarea';
-import { translateText as apiTranslate, convertTextToSpeech, getFileUrl } from '@/api';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import {
+  translateText as apiTranslate,
+  convertTextToSpeech,
+  getFileUrl,
+  getVoices,
+  ttsElevenLabs,
+  cloneVoice,
+  Voice
+} from '@/api';
 
 const languages = [
   { code: 'vi', name: 'Tiếng Việt' },
@@ -17,6 +27,8 @@ const languages = [
   { code: 'de', name: 'Deutsch' },
   { code: 'es', name: 'Español' },
 ];
+
+type TTSEngine = 'google' | 'elevenlabs';
 
 export const TextToSpeech = () => {
   const [sourceText, setSourceText] = useState('');
@@ -30,6 +42,60 @@ export const TextToSpeech = () => {
   const [isGeneratingTarget, setIsGeneratingTarget] = useState(false);
   const [sourceAudioUrl, setSourceAudioUrl] = useState<string | null>(null);
   const [targetAudioUrl, setTargetAudioUrl] = useState<string | null>(null);
+
+  // ElevenLabs states
+  const [ttsEngine, setTtsEngine] = useState<TTSEngine>('google');
+  const [voices, setVoices] = useState<Voice[]>([]);
+  const [selectedVoice, setSelectedVoice] = useState('');
+  const [isLoadingVoices, setIsLoadingVoices] = useState(false);
+  const [cloneName, setCloneName] = useState('');
+  const [isCloning, setIsCloning] = useState(false);
+  const [cloneStatus, setCloneStatus] = useState('');
+  const cloneInputRef = useRef<HTMLInputElement>(null);
+
+
+  // Fetch ElevenLabs voices when engine changes
+  useEffect(() => {
+    if (ttsEngine === 'elevenlabs') {
+      loadVoices();
+    }
+  }, [ttsEngine]);
+
+  const loadVoices = async () => {
+    setIsLoadingVoices(true);
+    try {
+      const result = await getVoices();
+      setVoices(result);
+      if (result.length > 0 && !selectedVoice) {
+        setSelectedVoice(result[0].voice_id);
+      }
+    } catch (error) {
+      console.error('Error loading voices:', error);
+    } finally {
+      setIsLoadingVoices(false);
+    }
+  };
+
+  // Clone voice handler
+  const handleCloneVoice = async (file: File) => {
+    if (!cloneName.trim()) {
+      setCloneStatus('Vui lòng nhập tên cho giọng nói');
+      return;
+    }
+
+    setIsCloning(true);
+    setCloneStatus('Đang clone giọng nói...');
+    try {
+      const result = await cloneVoice(cloneName, file);
+      setCloneStatus(`Clone thành công: ${result.name}`);
+      setSelectedVoice(result.voice_id);
+      await loadVoices(); // Refresh voice list
+    } catch (error: any) {
+      setCloneStatus(`Lỗi: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setIsCloning(false);
+    }
+  };
 
   // Translation using backend API
   const handleTranslate = async () => {
@@ -53,7 +119,12 @@ export const TextToSpeech = () => {
 
     setIsGeneratingSource(true);
     try {
-      const response = await convertTextToSpeech(sourceText, sourceLang);
+      let response;
+      if (ttsEngine === 'elevenlabs' && selectedVoice) {
+        response = await ttsElevenLabs(sourceText, selectedVoice);
+      } else {
+        response = await convertTextToSpeech(sourceText, sourceLang);
+      }
       setSourceAudioUrl(getFileUrl(response.audio_url));
     } catch (error) {
       console.error('TTS error:', error);
@@ -68,7 +139,12 @@ export const TextToSpeech = () => {
 
     setIsGeneratingTarget(true);
     try {
-      const response = await convertTextToSpeech(translatedText, targetLang);
+      let response;
+      if (ttsEngine === 'elevenlabs' && selectedVoice) {
+        response = await ttsElevenLabs(translatedText, selectedVoice);
+      } else {
+        response = await convertTextToSpeech(translatedText, targetLang);
+      }
       setTargetAudioUrl(getFileUrl(response.audio_url));
     } catch (error) {
       console.error('TTS error:', error);
@@ -104,6 +180,107 @@ export const TextToSpeech = () => {
         </motion.div>
 
         <div className="max-w-5xl mx-auto">
+          {/* TTS Engine Selection */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="glass-card p-6 mb-6"
+          >
+            <h3 className="font-semibold mb-4">Chọn Engine TTS</h3>
+            <div className="flex gap-4 flex-wrap">
+              <button
+                onClick={() => setTtsEngine('google')}
+                className={`px-4 py-2 rounded-lg border transition-all ${ttsEngine === 'google'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-background border-border hover:border-primary/50'
+                  }`}
+              >
+                Google
+              </button>
+              <button
+                onClick={() => setTtsEngine('elevenlabs')}
+                className={`px-4 py-2 rounded-lg border transition-all ${ttsEngine === 'elevenlabs'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-background border-border hover:border-primary/50'
+                  }`}
+              >
+                ElevenLabs (AI Voice)
+              </button>
+            </div>
+
+            {/* ElevenLabs Voice Selection */}
+            {ttsEngine === 'elevenlabs' && (
+              <div className="mt-4 space-y-4">
+                <div className="flex gap-4 items-end flex-wrap">
+                  <div className="flex-1 min-w-[200px]">
+                    <Label className="mb-2 block">Chọn Giọng</Label>
+                    <Select
+                      value={selectedVoice}
+                      onValueChange={setSelectedVoice}
+                      disabled={isLoadingVoices}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={isLoadingVoices ? "Đang tải..." : "Chọn giọng"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {voices.map((voice) => (
+                          <SelectItem key={voice.voice_id} value={voice.voice_id}>
+                            {voice.name} ({voice.category})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <GlowButton onClick={loadVoices} variant="outline" disabled={isLoadingVoices}>
+                    Refresh
+                  </GlowButton>
+                </div>
+
+                {/* Clone Voice */}
+                <div className="border-t border-border pt-4">
+                  <Label className="mb-2 block">Clone Giọng Của Bạn</Label>
+                  <div className="flex gap-2 items-end flex-wrap">
+                    <div className="flex-1 min-w-[150px]">
+                      <Input
+                        placeholder="Tên giọng mới"
+                        value={cloneName}
+                        onChange={(e) => setCloneName(e.target.value)}
+                      />
+                    </div>
+                    <input
+                      type="file"
+                      accept="audio/*"
+                      ref={cloneInputRef}
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleCloneVoice(file);
+                      }}
+                    />
+                    <GlowButton
+                      onClick={() => cloneInputRef.current?.click()}
+                      variant="secondary"
+                      disabled={isCloning || !cloneName.trim()}
+                      isLoading={isCloning}
+                    >
+                      <Upload className="w-4 h-4" />
+                      Upload
+                    </GlowButton>
+                  </div>
+                  {cloneStatus && (
+                    <p className={`text-sm mt-2 ${cloneStatus.includes('Lỗi') ? 'text-red-500' : 'text-green-500'}`}>
+                      {cloneStatus}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Upload file audio 30s - 1 phút để clone giọng nói
+                  </p>
+                </div>
+              </div>
+            )}
+          </motion.div>
+
           {/* Two Column Layout */}
           <div className="grid md:grid-cols-2 gap-6 mb-6">
             {/* Source Text */}
@@ -229,46 +406,6 @@ export const TextToSpeech = () => {
               </div>
             </motion.div>
           </div>
-
-          {/* Voice Settings */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="glass-card p-6"
-          >
-            <h3 className="font-semibold mb-6">Cài Đặt Giọng Nói</h3>
-
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-muted-foreground">Tốc độ</span>
-                  <span className="text-primary font-mono">{rate.toFixed(1)}x</span>
-                </div>
-                <Slider
-                  value={[rate]}
-                  onValueChange={(value) => setRate(value[0])}
-                  min={0.5}
-                  max={2}
-                  step={0.1}
-                />
-              </div>
-
-              <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-muted-foreground">Cao độ</span>
-                  <span className="text-primary font-mono">{pitch.toFixed(1)}</span>
-                </div>
-                <Slider
-                  value={[pitch]}
-                  onValueChange={(value) => setPitch(value[0])}
-                  min={0.5}
-                  max={2}
-                  step={0.1}
-                />
-              </div>
-            </div>
-          </motion.div>
         </div>
       </div>
     </section>

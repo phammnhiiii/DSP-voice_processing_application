@@ -122,3 +122,58 @@ export const DSP_EFFECTS: { id: DSPEffect; name: string }[] = [
     { id: 'process_voice', name: 'Denoise' },
 ];
 
+// ============== ELEVENLABS TTS ==============
+
+export interface Voice {
+    voice_id: string;
+    name: string;
+    category: string;
+}
+
+export interface VoicesResponse {
+    voices: Voice[];
+}
+
+export interface CloneVoiceResponse {
+    voice_id: string;
+    name: string;
+}
+
+// Get all available ElevenLabs voices
+export const getVoices = async (): Promise<Voice[]> => {
+    try {
+        const response = await axios.get<VoicesResponse>(`${API_BASE}/voices`);
+        return response.data.voices || [];
+    } catch (error) {
+        console.error('Error fetching voices:', error);
+        return [];
+    }
+};
+
+// Text to Speech using ElevenLabs
+export const ttsElevenLabs = async (
+    text: string,
+    voiceId: string = '21m00Tcm4TlvDq8ikWAM'
+): Promise<TTSResponse> => {
+    const formData = new FormData();
+    formData.append('text', text);
+    formData.append('voice_id', voiceId);
+
+    const response = await axios.post<TTSResponse>(`${API_BASE}/tts-eleven`, formData);
+    return response.data;
+};
+
+// Clone a voice from audio sample
+export const cloneVoice = async (
+    name: string,
+    audioFile: File | Blob,
+    description: string = ''
+): Promise<CloneVoiceResponse> => {
+    const formData = new FormData();
+    formData.append('name', name);
+    formData.append('file', audioFile);
+    formData.append('description', description);
+
+    const response = await axios.post<CloneVoiceResponse>(`${API_BASE}/clone-voice`, formData);
+    return response.data;
+};

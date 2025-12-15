@@ -5,7 +5,16 @@ import { GlowButton } from '../ui/GlowButton';
 import { AudioVisualizer } from '../ui/AudioVisualizer';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Textarea } from '../ui/textarea';
-import { translateText as apiTranslate, speechToText as apiSpeechToText, convertTextToSpeech, getFileUrl } from '@/api';
+import { Label } from '../ui/label';
+import {
+  translateText as apiTranslate,
+  speechToText as apiSpeechToText,
+  convertTextToSpeech,
+  getFileUrl,
+  getVoices,
+  ttsElevenLabs,
+  Voice
+} from '@/api';
 import { useToast } from '@/hooks/use-toast';
 
 const languages = [
@@ -33,12 +42,40 @@ export const SpeechToText = () => {
   const [translatedAudioUrl, setTranslatedAudioUrl] = useState<string | null>(null);
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
 
+  // ElevenLabs TTS for translated text
+  const [ttsEngine, setTtsEngine] = useState<'google' | 'elevenlabs'>('google');
+  const [voices, setVoices] = useState<Voice[]>([]);
+  const [selectedVoice, setSelectedVoice] = useState('');
+  const [isLoadingVoices, setIsLoadingVoices] = useState(false);
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
   const { toast } = useToast();
+
+  // Load voices when switching to ElevenLabs
+  useEffect(() => {
+    if (ttsEngine === 'elevenlabs' && voices.length === 0) {
+      loadVoices();
+    }
+  }, [ttsEngine]);
+
+  const loadVoices = async () => {
+    setIsLoadingVoices(true);
+    try {
+      const result = await getVoices();
+      setVoices(result);
+      if (result.length > 0 && !selectedVoice) {
+        setSelectedVoice(result[0].voice_id);
+      }
+    } catch (error) {
+      console.error('Error loading voices:', error);
+    } finally {
+      setIsLoadingVoices(false);
+    }
+  };
 
   const startRecording = async () => {
     try {
@@ -135,10 +172,15 @@ export const SpeechToText = () => {
       const response = await apiTranslate(transcript, sourceLang, targetLang);
       setTranslatedText(response.translated_text);
 
-      // Also generate TTS for translated text
+      // Generate TTS for translated text
       setIsGeneratingAudio(true);
       try {
-        const ttsResponse = await convertTextToSpeech(response.translated_text, targetLang);
+        let ttsResponse;
+        if (ttsEngine === 'elevenlabs' && selectedVoice) {
+          ttsResponse = await ttsElevenLabs(response.translated_text, selectedVoice);
+        } else {
+          ttsResponse = await convertTextToSpeech(response.translated_text, targetLang);
+        }
         setTranslatedAudioUrl(getFileUrl(ttsResponse.audio_url));
       } catch (ttsError) {
         console.error('TTS error:', ttsError);
@@ -303,9 +345,9 @@ export const SpeechToText = () => {
             viewport={{ once: true }}
             className="glass-card p-6"
           >
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
               <h3 className="font-semibold">Dịch Văn Bản</h3>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm text-muted-foreground">Dịch sang:</span>
                 <Select value={targetLang} onValueChange={setTargetLang}>
                   <SelectTrigger className="w-32">
@@ -329,6 +371,48 @@ export const SpeechToText = () => {
                   <Languages className="w-4 h-4" /> Dịch
                 </GlowButton>
               </div>
+            </div>
+
+            {/* TTS Engine Selection for translated audio */}
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
+              <Label className="text-sm">Giọng đọc:</Label>
+              <button
+                onClick={() => setTtsEngine('google')}
+                className={`px-3 py-1 text-sm rounded-lg border transition-all ${ttsEngine === 'google'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-background border-border hover:border-primary/50'
+                  }`}
+              >
+                Google
+              </button>
+              <button
+                onClick={() => setTtsEngine('elevenlabs')}
+                className={`px-3 py-1 text-sm rounded-lg border transition-all ${ttsEngine === 'elevenlabs'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-background border-border hover:border-primary/50'
+                  }`}
+              >
+                ElevenLabs
+              </button>
+              {ttsEngine === 'elevenlabs' && (
+                <>
+                  <Select value={selectedVoice} onValueChange={setSelectedVoice} disabled={isLoadingVoices}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder={isLoadingVoices ? "Đang tải..." : "Chọn giọng"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {voices.map((voice) => (
+                        <SelectItem key={voice.voice_id} value={voice.voice_id}>
+                          {voice.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <GlowButton onClick={loadVoices} variant="outline" size="sm" disabled={isLoadingVoices}>
+                    Refresh
+                  </GlowButton>
+                </>
+              )}
             </div>
 
             <Textarea

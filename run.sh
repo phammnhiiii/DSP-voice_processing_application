@@ -9,19 +9,19 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_DIR"
 
 start_backend() {
-    echo "🚀 Starting Backend..."
+    echo "Starting Backend..."
     source venv/bin/activate
     uvicorn main:app --reload --host 0.0.0.0 --port 8000
 }
 
 start_frontend() {
-    echo "🎨 Starting Frontend..."
+    echo "Starting Frontend..."
     cd frontend
     npm run dev
 }
 
 start_all() {
-    echo "🚀 Starting both Backend & Frontend..."
+    echo "Starting both Backend & Frontend..."
     # Start backend in background
     source venv/bin/activate
     uvicorn main:app --reload --host 0.0.0.0 --port 8000 &
@@ -33,7 +33,7 @@ start_all() {
     FRONTEND_PID=$!
     
     echo ""
-    echo "✅ Services started:"
+    echo "Services started:"
     echo "   Backend:  http://localhost:8000 (PID: $BACKEND_PID)"
     echo "   Frontend: http://localhost:5173 (PID: $FRONTEND_PID)"
     echo ""

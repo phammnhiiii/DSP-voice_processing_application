@@ -246,3 +246,63 @@ async def get_raw_file(filename: str):
     if os.path.exists(file_path):
         return FileResponse(file_path)
     return JSONResponse(status_code=404, content={"error": "Raw file not found"})
+
+
+# ============== ELEVENLABS TTS ==============
+
+@router.get("/voices")
+async def list_voices_endpoint():
+    """Get all available ElevenLabs voices."""
+    try:
+        from src.utils.elevenlabs import list_voices
+        voices = list_voices()
+        return {"voices": voices}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@router.post("/tts-eleven")
+async def tts_eleven_endpoint(text: str = Form(...), voice_id: str = Form("21m00Tcm4TlvDq8ikWAM")):
+    """Convert text to speech using ElevenLabs."""
+    try:
+        from src.utils.elevenlabs import text_to_speech_eleven
+        output_path = text_to_speech_eleven(text, voice_id)
+        if output_path:
+            final_name = os.path.basename(output_path)
+            shutil.move(output_path, os.path.join(TEMP_DIR, final_name))
+            return {"audio_url": f"/files/{final_name}"}
+        else:
+            return JSONResponse(status_code=500, content={"error": "ElevenLabs TTS failed"})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@router.post("/clone-voice")
+async def clone_voice_endpoint(
+    name: str = Form(...),
+    file: UploadFile = File(...),
+    description: str = Form("")
+):
+    """Clone a voice from audio sample."""
+    try:
+        from src.utils.elevenlabs import clone_voice
+        
+        # Save uploaded audio
+        file_ext = file.filename.split(".")[-1] if "." in file.filename else "mp3"
+        temp_path = os.path.join(TEMP_DIR, f"clone_{uuid.uuid4()}.{file_ext}")
+        with open(temp_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Clone voice
+        result = clone_voice(name, temp_path, description)
+        
+        # Cleanup
+        os.remove(temp_path)
+        
+        if result.get("success"):
+            return {"voice_id": result["voice_id"], "name": result["name"]}
+        else:
+            return JSONResponse(status_code=400, content={"error": result.get("error", "Clone failed")})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
