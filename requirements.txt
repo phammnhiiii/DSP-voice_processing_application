@@ -1,7 +1,8 @@
 # FastAPI Backend
-fastapi>=0.104.0
-uvicorn>=0.24.0
+fastapi>=0.100.0
+uvicorn>=0.22.0
 python-multipart>=0.0.6
+deep-translator>=1.11.0
 
 # Audio Processing (DSP)
 numpy>=1.24.0

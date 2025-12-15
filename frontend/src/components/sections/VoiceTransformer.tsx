@@ -1,42 +1,58 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Mic, MicOff, Play, Square, Wand2, Download, Upload, Image } from 'lucide-react';
+import { Mic, MicOff, Wand2, Download, Upload, Filter } from 'lucide-react';
 import { GlowButton } from '../ui/GlowButton';
 import { AudioVisualizer } from '../ui/AudioVisualizer';
 import { useAudioProcessor, VoiceEffect } from '@/hooks/useAudioProcessor';
-import { DSP_EFFECTS } from '@/api';
+import { Switch } from '../ui/switch';
+import { Label } from '../ui/label';
 
-// Use DSP backend effects
-const effects = DSP_EFFECTS;
+// DSP effects - no emoji icons
+const effects: { id: VoiceEffect; name: string }[] = [
+  { id: 'chipmunk', name: 'Chipmunk' },
+  { id: 'robot', name: 'Robot' },
+  { id: 'echo', name: 'Echo' },
+  { id: 'electronic', name: 'Electronic' },
+  { id: 'stutter', name: 'Stutter' },
+  { id: 'process_voice', name: 'Denoise' },
+];
 
 export const VoiceTransformer = () => {
   const [selectedEffect, setSelectedEffect] = useState<VoiceEffect>('chipmunk');
   const [isProcessing, setIsProcessing] = useState(false);
   const [echoDelay, setEchoDelay] = useState(0.2);
   const [stutterRepeat, setStutterRepeat] = useState(3);
+  const [enableNoiseFilter, setEnableNoiseFilter] = useState(true);
+  const [localAudioUrl, setLocalAudioUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
     isRecording,
-    isPlaying,
     audioBlob,
     processedUrl,
     waveformUrl,
     analyser,
-    processedAnalyser,
     startRecording,
     stopRecording,
     applyEffect,
-    playOriginal,
-    playProcessed,
-    stopPlayback,
     setAudioFile,
   } = useAudioProcessor();
+
+  // Create local URL for playback before applying effect
+  useEffect(() => {
+    if (audioBlob) {
+      const url = URL.createObjectURL(audioBlob);
+      setLocalAudioUrl(url);
+      return () => URL.revokeObjectURL(url);
+    } else {
+      setLocalAudioUrl(null);
+    }
+  }, [audioBlob]);
 
   const handleApplyEffect = async () => {
     setIsProcessing(true);
     try {
-      await applyEffect(selectedEffect, echoDelay, stutterRepeat);
+      await applyEffect(selectedEffect, echoDelay, stutterRepeat, enableNoiseFilter);
     } catch (error) {
       console.error('Error applying effect:', error);
     }
@@ -72,31 +88,27 @@ export const VoiceTransformer = () => {
             <span className="gradient-text">Biến Đổi Giọng Nói</span>
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            Ghi âm giọng nói hoặc tải file audio và áp dụng các hiệu ứng DSP mạnh mẽ
-            được xử lý trên server.
+            Ghi âm hoặc tải file âm thanh và áp dụng các hiệu ứng DSP được xử lý trên server.
           </p>
         </motion.div>
 
         <div className="grid lg:grid-cols-2 gap-8">
-          {/* Original Audio */}
+          {/* Input Audio */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             className="glass-card p-6"
           >
-            <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-              <Mic className="w-5 h-5 text-primary" />
-              Âm Thanh Gốc
-            </h3>
+            <h3 className="text-xl font-semibold mb-4">Nhập Âm Thanh</h3>
 
             <AudioVisualizer
               analyser={analyser}
-              isActive={isRecording || isPlaying}
-              className="h-40 mb-6"
+              isActive={isRecording}
+              className="h-32 mb-4"
             />
 
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-3 mb-4">
               <GlowButton
                 onClick={isRecording ? stopRecording : startRecording}
                 variant={isRecording ? 'accent' : 'primary'}
@@ -125,86 +137,65 @@ export const VoiceTransformer = () => {
               >
                 <Upload className="w-4 h-4" /> Tải File
               </GlowButton>
-
-              {audioBlob && (
-                <GlowButton
-                  onClick={isPlaying ? stopPlayback : playOriginal}
-                  variant="outline"
-                >
-                  {isPlaying ? (
-                    <>
-                      <Square className="w-4 h-4" /> Dừng
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-4 h-4" /> Phát
-                    </>
-                  )}
-                </GlowButton>
-              )}
             </div>
 
-            {audioBlob && (
-              <p className="mt-3 text-sm text-muted-foreground">
-                ✅ Đã sẵn sàng: {audioBlob instanceof File ? audioBlob.name : 'Đã ghi âm'}
-              </p>
+            {/* Audio player for original audio */}
+            {localAudioUrl && (
+              <div className="mt-4">
+                <audio controls src={localAudioUrl} className="w-full" />
+              </div>
             )}
+
+            {/* Noise Filter Toggle */}
+            <div className="mt-4 flex items-center space-x-2 p-3 bg-card/50 rounded-lg border border-border">
+              <Switch
+                id="noise-filter"
+                checked={enableNoiseFilter}
+                onCheckedChange={setEnableNoiseFilter}
+              />
+              <Label htmlFor="noise-filter" className="flex items-center gap-2 cursor-pointer">
+                <Filter className="w-4 h-4" />
+                Lọc nhiễu trước khi xử lý
+              </Label>
+            </div>
           </motion.div>
 
-          {/* Processed Audio */}
+          {/* Processed Audio Output */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             className="glass-card p-6"
           >
-            <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-              <Wand2 className="w-5 h-5 text-secondary" />
-              Âm Thanh Đã Xử Lý
-            </h3>
+            <h3 className="text-xl font-semibold mb-4">Kết Quả</h3>
 
+            {/* Waveform Comparison - English labels in chart */}
             {waveformUrl ? (
-              <div className="h-40 mb-6 flex items-center justify-center bg-card/50 rounded-lg overflow-hidden">
-                <img
-                  src={waveformUrl}
-                  alt="Waveform"
-                  className="w-full h-full object-contain mix-blend-normal dark:invert"
-                />
+              <div className="mb-4">
+                <div className="h-64 flex items-center justify-center bg-card/50 rounded-lg overflow-hidden border border-border">
+                  <img
+                    src={waveformUrl}
+                    alt="Waveform comparison"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
               </div>
             ) : (
-              <AudioVisualizer
-                analyser={processedAnalyser}
-                isActive={isPlaying && !!processedUrl}
-                className="h-40 mb-6"
-              />
+              <div className="h-64 mb-4 flex items-center justify-center bg-card/30 rounded-lg border border-dashed border-border">
+                <p className="text-sm text-muted-foreground text-center px-4">
+                  Biểu đồ so sánh sẽ hiển thị sau khi xử lý
+                </p>
+              </div>
             )}
 
-            <div className="flex flex-wrap gap-3">
-              {processedUrl && (
-                <>
-                  <GlowButton
-                    onClick={isPlaying ? stopPlayback : playProcessed}
-                    variant="secondary"
-                  >
-                    {isPlaying ? (
-                      <>
-                        <Square className="w-4 h-4" /> Dừng
-                      </>
-                    ) : (
-                      <>
-                        <Play className="w-4 h-4" /> Phát
-                      </>
-                    )}
-                  </GlowButton>
-                  <GlowButton onClick={handleDownload} variant="outline">
-                    <Download className="w-4 h-4" /> Tải Xuống
-                  </GlowButton>
-                </>
-              )}
-            </div>
-
+            {/* Processed Audio Player */}
             {processedUrl && (
-              <audio controls src={processedUrl} className="w-full mt-4" />
+              <div className="space-y-3">
+                <audio controls src={processedUrl} className="w-full" />
+                <GlowButton onClick={handleDownload} variant="outline" className="w-full">
+                  <Download className="w-4 h-4" /> Tải Xuống
+                </GlowButton>
+              </div>
             )}
           </motion.div>
         </div>
@@ -216,7 +207,7 @@ export const VoiceTransformer = () => {
           viewport={{ once: true }}
           className="mt-8"
         >
-          <h3 className="text-lg font-semibold mb-4 text-center">Chọn Hiệu Ứng DSP</h3>
+          <h3 className="text-lg font-semibold mb-4 text-center">Chọn Hiệu Ứng</h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {effects.map((effect) => (
               <motion.button
@@ -225,11 +216,10 @@ export const VoiceTransformer = () => {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 className={`p-4 rounded-xl border transition-all ${selectedEffect === effect.id
-                    ? 'bg-primary/20 border-primary text-primary'
-                    : 'bg-card/50 border-border hover:border-primary/50'
+                  ? 'bg-primary/20 border-primary text-primary'
+                  : 'bg-card/50 border-border hover:border-primary/50'
                   }`}
               >
-                <div className="text-2xl mb-2">{effect.icon}</div>
                 <div className="text-sm font-medium">{effect.name}</div>
               </motion.button>
             ))}
@@ -244,7 +234,7 @@ export const VoiceTransformer = () => {
             >
               {selectedEffect === 'echo' && (
                 <div className="flex items-center gap-4">
-                  <label className="text-sm font-medium">Delay (giây):</label>
+                  <label className="text-sm font-medium">Độ trễ (giây):</label>
                   <input
                     type="range"
                     min="0.1"
@@ -259,7 +249,7 @@ export const VoiceTransformer = () => {
               )}
               {selectedEffect === 'stutter' && (
                 <div className="flex items-center gap-4">
-                  <label className="text-sm font-medium">Lặp lại:</label>
+                  <label className="text-sm font-medium">Số lần lặp:</label>
                   <input
                     type="range"
                     min="2"

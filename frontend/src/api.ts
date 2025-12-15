@@ -5,6 +5,7 @@ const API_BASE = 'http://localhost:8000';
 export interface ProcessAudioResponse {
     audio_url: string;
     waveform_url: string | null;
+    raw_audio_url: string | null;
 }
 
 export interface TTSResponse {
@@ -15,18 +16,24 @@ export interface STTResponse {
     text: string;
 }
 
+export interface TranslateResponse {
+    translated_text: string;
+}
+
 // Process audio with effects (chipmunk, robot, echo, electronic, stutter)
 export const processAudio = async (
     file: File | Blob,
     effect: string,
     delay: number = 0.2,
-    repeat: number = 3
+    repeat: number = 3,
+    enableFilter: boolean = false
 ): Promise<ProcessAudioResponse> => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('effect', effect);
     formData.append('delay', delay.toString());
     formData.append('repeat', repeat.toString());
+    formData.append('enable_filter', enableFilter.toString());
 
     const response = await axios.post<ProcessAudioResponse>(
         `${API_BASE}/process-audio`,
@@ -40,7 +47,22 @@ export const processAudio = async (
     return response.data;
 };
 
-// Text to Speech
+// Translate text between languages
+export const translateText = async (
+    text: string,
+    sourceLang: string,
+    targetLang: string
+): Promise<TranslateResponse> => {
+    const formData = new FormData();
+    formData.append('text', text);
+    formData.append('source_lang', sourceLang);
+    formData.append('target_lang', targetLang);
+
+    const response = await axios.post<TranslateResponse>(`${API_BASE}/translate`, formData);
+    return response.data;
+};
+
+// Text to Speech using backend API
 export const convertTextToSpeech = async (
     text: string,
     lang: string = 'vi'
@@ -53,7 +75,7 @@ export const convertTextToSpeech = async (
     return response.data;
 };
 
-// Speech to Text
+// Speech to Text using backend API
 export const speechToText = async (
     file: File | Blob,
     language: string = 'vi-VN'

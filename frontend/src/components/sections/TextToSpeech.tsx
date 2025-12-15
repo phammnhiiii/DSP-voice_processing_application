@@ -1,105 +1,90 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Volume2, Play, Square, Download, Languages, Sparkles } from 'lucide-react';
+import { Volume2, Download, Languages } from 'lucide-react';
 import { GlowButton } from '../ui/GlowButton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Slider } from '../ui/slider';
 import { Textarea } from '../ui/textarea';
+import { translateText as apiTranslate, convertTextToSpeech, getFileUrl } from '@/api';
 
 const languages = [
-  { code: 'vi-VN', name: 'Tiếng Việt' },
-  { code: 'en-US', name: 'English (US)' },
-  { code: 'en-GB', name: 'English (UK)' },
-  { code: 'ja-JP', name: '日本語' },
-  { code: 'ko-KR', name: '한국어' },
+  { code: 'vi', name: 'Tiếng Việt' },
+  { code: 'en', name: 'English' },
+  { code: 'ja', name: '日本語' },
+  { code: 'ko', name: '한국어' },
   { code: 'zh-CN', name: '中文' },
-  { code: 'fr-FR', name: 'Français' },
-  { code: 'de-DE', name: 'Deutsch' },
-  { code: 'es-ES', name: 'Español' },
-  { code: 'ru-RU', name: 'Русский' },
+  { code: 'fr', name: 'Français' },
+  { code: 'de', name: 'Deutsch' },
+  { code: 'es', name: 'Español' },
 ];
 
 export const TextToSpeech = () => {
-  const [text, setText] = useState('');
+  const [sourceText, setSourceText] = useState('');
   const [translatedText, setTranslatedText] = useState('');
-  const [sourceLang, setSourceLang] = useState('vi-VN');
-  const [targetLang, setTargetLang] = useState('en-US');
+  const [sourceLang, setSourceLang] = useState('vi');
+  const [targetLang, setTargetLang] = useState('en');
   const [rate, setRate] = useState(1);
   const [pitch, setPitch] = useState(1);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [selectedVoice, setSelectedVoice] = useState<string>('');
-  
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const [isGeneratingSource, setIsGeneratingSource] = useState(false);
+  const [isGeneratingTarget, setIsGeneratingTarget] = useState(false);
+  const [sourceAudioUrl, setSourceAudioUrl] = useState<string | null>(null);
+  const [targetAudioUrl, setTargetAudioUrl] = useState<string | null>(null);
 
-  useEffect(() => {
-    const loadVoices = () => {
-      const availableVoices = speechSynthesis.getVoices();
-      setVoices(availableVoices);
-      if (availableVoices.length > 0) {
-        const defaultVoice = availableVoices.find(v => v.lang.startsWith('vi')) || availableVoices[0];
-        setSelectedVoice(defaultVoice.name);
-      }
-    };
+  // Translation using backend API
+  const handleTranslate = async () => {
+    if (!sourceText.trim()) return;
 
-    loadVoices();
-    speechSynthesis.onvoiceschanged = loadVoices;
-
-    return () => {
-      speechSynthesis.cancel();
-    };
-  }, []);
-
-  const translateText = async () => {
-    if (!text.trim()) return;
-    
     setIsTranslating(true);
-    
-    // Using a simple translation simulation
-    // In production, you would use Google Translate API or similar
     try {
-      // Simulated translation delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // For demo purposes, we'll just add a note about the translation
-      // In real app, integrate with translation API
-      const translated = `[Translated to ${languages.find(l => l.code === targetLang)?.name}]\n${text}`;
-      setTranslatedText(translated);
+      const response = await apiTranslate(sourceText, sourceLang, targetLang);
+      setTranslatedText(response.translated_text);
     } catch (error) {
       console.error('Translation error:', error);
+      setTranslatedText('Lỗi dịch. Vui lòng thử lại.');
     } finally {
       setIsTranslating(false);
     }
   };
 
-  const speak = (textToSpeak: string, lang: string) => {
-    speechSynthesis.cancel();
-    
-    const utterance = new SpeechSynthesisUtterance(textToSpeak);
-    utterance.rate = rate;
-    utterance.pitch = pitch;
-    utterance.lang = lang;
-    
-    const voice = voices.find(v => v.name === selectedVoice);
-    if (voice) {
-      utterance.voice = voice;
+  // Generate speech for source text
+  const generateSourceAudio = async () => {
+    if (!sourceText.trim()) return;
+
+    setIsGeneratingSource(true);
+    try {
+      const response = await convertTextToSpeech(sourceText, sourceLang);
+      setSourceAudioUrl(getFileUrl(response.audio_url));
+    } catch (error) {
+      console.error('TTS error:', error);
+    } finally {
+      setIsGeneratingSource(false);
     }
-    
-    utterance.onstart = () => setIsPlaying(true);
-    utterance.onend = () => setIsPlaying(false);
-    utterance.onerror = () => setIsPlaying(false);
-    
-    utteranceRef.current = utterance;
-    speechSynthesis.speak(utterance);
   };
 
-  const stopSpeaking = () => {
-    speechSynthesis.cancel();
-    setIsPlaying(false);
+  // Generate speech for translated text
+  const generateTargetAudio = async () => {
+    if (!translatedText.trim()) return;
+
+    setIsGeneratingTarget(true);
+    try {
+      const response = await convertTextToSpeech(translatedText, targetLang);
+      setTargetAudioUrl(getFileUrl(response.audio_url));
+    } catch (error) {
+      console.error('TTS error:', error);
+    } finally {
+      setIsGeneratingTarget(false);
+    }
   };
 
-  const filteredVoices = voices.filter(v => v.lang.startsWith(targetLang.split('-')[0]));
+  const handleDownload = (url: string | null, lang: string) => {
+    if (url) {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tts-${lang}.mp3`;
+      a.click();
+    }
+  };
 
   return (
     <section id="text-to-speech" className="py-24 relative">
@@ -114,13 +99,13 @@ export const TextToSpeech = () => {
             <span className="gradient-text">Text to Speech</span>
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            Chuyển đổi văn bản thành giọng nói tự nhiên. 
-            Hỗ trợ dịch tự động và nhiều ngôn ngữ khác nhau.
+            Dịch văn bản và chuyển đổi thành giọng nói tự nhiên.
           </p>
         </motion.div>
 
-        <div className="max-w-4xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-6">
+        <div className="max-w-5xl mx-auto">
+          {/* Two Column Layout */}
+          <div className="grid md:grid-cols-2 gap-6 mb-6">
             {/* Source Text */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
@@ -129,12 +114,9 @@ export const TextToSpeech = () => {
               className="glass-card p-6"
             >
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <Languages className="w-5 h-5 text-primary" />
-                  Văn Bản Nguồn
-                </h3>
+                <h3 className="font-semibold">Văn Bản Nguồn</h3>
                 <Select value={sourceLang} onValueChange={setSourceLang}>
-                  <SelectTrigger className="w-40">
+                  <SelectTrigger className="w-36">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -146,27 +128,36 @@ export const TextToSpeech = () => {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <Textarea
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder="Nhập văn bản bạn muốn chuyển thành giọng nói..."
-                className="min-h-[200px] bg-background/50 border-border/50"
+                value={sourceText}
+                onChange={(e) => setSourceText(e.target.value)}
+                placeholder="Nhập văn bản cần dịch và chuyển thành giọng nói..."
+                className="min-h-[150px] bg-background/50 border-border/50"
               />
 
-              <div className="mt-4 flex gap-3">
+              <div className="mt-4 space-y-3">
                 <GlowButton
-                  onClick={() => speak(text, sourceLang)}
-                  disabled={!text.trim() || isPlaying}
-                  variant="outline"
-                  size="sm"
+                  onClick={generateSourceAudio}
+                  disabled={!sourceText.trim()}
+                  isLoading={isGeneratingSource}
+                  variant="primary"
+                  className="w-full"
                 >
-                  <Play className="w-4 h-4" /> Phát
+                  <Volume2 className="w-4 h-4" /> Tạo Audio
                 </GlowButton>
-                {isPlaying && (
-                  <GlowButton onClick={stopSpeaking} variant="accent" size="sm">
-                    <Square className="w-4 h-4" /> Dừng
-                  </GlowButton>
+
+                {sourceAudioUrl && (
+                  <>
+                    <audio controls src={sourceAudioUrl} className="w-full" />
+                    <GlowButton
+                      onClick={() => handleDownload(sourceAudioUrl, sourceLang)}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      <Download className="w-4 h-4" /> Tải Xuống
+                    </GlowButton>
+                  </>
                 )}
               </div>
             </motion.div>
@@ -179,12 +170,9 @@ export const TextToSpeech = () => {
               className="glass-card p-6"
             >
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-secondary" />
-                  Đã Dịch
-                </h3>
+                <h3 className="font-semibold">Văn Bản Đã Dịch</h3>
                 <Select value={targetLang} onValueChange={setTargetLang}>
-                  <SelectTrigger className="w-40">
+                  <SelectTrigger className="w-36">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -196,32 +184,47 @@ export const TextToSpeech = () => {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <Textarea
                 value={translatedText}
-                readOnly
+                onChange={(e) => setTranslatedText(e.target.value)}
                 placeholder="Văn bản dịch sẽ xuất hiện ở đây..."
-                className="min-h-[200px] bg-background/50 border-border/50"
+                className="min-h-[150px] bg-background/50 border-border/50"
               />
 
-              <div className="mt-4 flex gap-3">
-                <GlowButton
-                  onClick={translateText}
-                  disabled={!text.trim()}
-                  isLoading={isTranslating}
-                  size="sm"
-                >
-                  <Languages className="w-4 h-4" /> Dịch
-                </GlowButton>
-                {translatedText && (
+              <div className="mt-4 space-y-3">
+                <div className="flex gap-2">
                   <GlowButton
-                    onClick={() => speak(translatedText, targetLang)}
-                    disabled={isPlaying}
+                    onClick={handleTranslate}
+                    disabled={!sourceText.trim()}
+                    isLoading={isTranslating}
                     variant="secondary"
-                    size="sm"
+                    className="flex-1"
                   >
-                    <Play className="w-4 h-4" /> Phát
+                    <Languages className="w-4 h-4" /> Dịch
                   </GlowButton>
+                  <GlowButton
+                    onClick={generateTargetAudio}
+                    disabled={!translatedText.trim()}
+                    isLoading={isGeneratingTarget}
+                    variant="primary"
+                    className="flex-1"
+                  >
+                    <Volume2 className="w-4 h-4" /> Tạo Audio
+                  </GlowButton>
+                </div>
+
+                {targetAudioUrl && (
+                  <>
+                    <audio controls src={targetAudioUrl} className="w-full" />
+                    <GlowButton
+                      onClick={() => handleDownload(targetAudioUrl, targetLang)}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      <Download className="w-4 h-4" /> Tải Xuống
+                    </GlowButton>
+                  </>
                 )}
               </div>
             </motion.div>
@@ -232,32 +235,11 @@ export const TextToSpeech = () => {
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="glass-card p-6 mt-6"
+            className="glass-card p-6"
           >
-            <h3 className="font-semibold mb-6 flex items-center gap-2">
-              <Volume2 className="w-5 h-5 text-primary" />
-              Cài Đặt Giọng Nói
-            </h3>
+            <h3 className="font-semibold mb-6">Cài Đặt Giọng Nói</h3>
 
-            <div className="grid md:grid-cols-3 gap-6">
-              {/* Voice Selection */}
-              <div>
-                <label className="text-sm text-muted-foreground mb-2 block">Giọng đọc</label>
-                <Select value={selectedVoice} onValueChange={setSelectedVoice}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Chọn giọng" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(filteredVoices.length > 0 ? filteredVoices : voices).map((voice) => (
-                      <SelectItem key={voice.name} value={voice.name}>
-                        {voice.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Speed */}
+            <div className="grid md:grid-cols-2 gap-6">
               <div>
                 <div className="flex justify-between text-sm mb-2">
                   <span className="text-muted-foreground">Tốc độ</span>
@@ -272,7 +254,6 @@ export const TextToSpeech = () => {
                 />
               </div>
 
-              {/* Pitch */}
               <div>
                 <div className="flex justify-between text-sm mb-2">
                   <span className="text-muted-foreground">Cao độ</span>

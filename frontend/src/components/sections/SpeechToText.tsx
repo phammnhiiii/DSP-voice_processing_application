@@ -1,177 +1,278 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Mic, MicOff, Copy, Check, FileText, Trash2 } from 'lucide-react';
+import { Mic, MicOff, Languages, Copy, Trash2 } from 'lucide-react';
 import { GlowButton } from '../ui/GlowButton';
 import { AudioVisualizer } from '../ui/AudioVisualizer';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Textarea } from '../ui/textarea';
+import { translateText as apiTranslate } from '@/api';
 import { useToast } from '@/hooks/use-toast';
 
 const languages = [
-  { code: 'vi-VN', name: 'Tiếng Việt' },
-  { code: 'en-US', name: 'English (US)' },
-  { code: 'en-GB', name: 'English (UK)' },
-  { code: 'ja-JP', name: '日本語' },
-  { code: 'ko-KR', name: '한국어' },
-  { code: 'zh-CN', name: '中文' },
-  { code: 'fr-FR', name: 'Français' },
-  { code: 'de-DE', name: 'Deutsch' },
-  { code: 'es-ES', name: 'Español' },
+  { code: 'vi-VN', name: 'Tiếng Việt', shortCode: 'vi' },
+  { code: 'en-US', name: 'English', shortCode: 'en' },
+  { code: 'ja-JP', name: '日本語', shortCode: 'ja' },
+  { code: 'ko-KR', name: '한국어', shortCode: 'ko' },
+  { code: 'zh-CN', name: '中文', shortCode: 'zh-CN' },
+  { code: 'fr-FR', name: 'Français', shortCode: 'fr' },
+  { code: 'de-DE', name: 'Deutsch', shortCode: 'de' },
+  { code: 'es-ES', name: 'Español', shortCode: 'es' },
 ];
-
-interface TranscriptEntry {
-  id: string;
-  text: string;
-  timestamp: Date;
-  isFinal: boolean;
-}
 
 export const SpeechToText = () => {
   const [isListening, setIsListening] = useState(false);
-  const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
-  const [interimText, setInterimText] = useState('');
+  const [transcript, setTranscript] = useState('');
+  const [translatedText, setTranslatedText] = useState('');
   const [language, setLanguage] = useState('vi-VN');
-  const [copied, setCopied] = useState(false);
+  const [targetLang, setTargetLang] = useState('en');
+  const [isTranslating, setIsTranslating] = useState(false);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
-  const [isSupported, setIsSupported] = useState(true);
-  
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+
   const recognitionRef = useRef<any>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const isListeningRef = useRef(false);
+  const errorCountRef = useRef(0);
+
   const { toast } = useToast();
 
+  // Keep ref in sync with state
   useEffect(() => {
-    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    
-    if (!SpeechRecognitionAPI) {
-      setIsSupported(false);
-      return;
+    isListeningRef.current = isListening;
+  }, [isListening]);
+
+  // Initialize speech recognition
+  const initRecognition = useCallback(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      toast({
+        title: 'Không hỗ trợ',
+        description: 'Vui lòng sử dụng Chrome hoặc Edge để nhận diện giọng nói.',
+        variant: 'destructive',
+      });
+      return null;
     }
 
-    const recognition = new SpeechRecognitionAPI();
+    const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = language;
 
-    recognition.onresult = (event) => {
-      let interimTranscript = '';
-      
+    recognition.onresult = (event: any) => {
+      let finalTranscript = '';
+
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
         if (result.isFinal) {
-          const newEntry: TranscriptEntry = {
-            id: Date.now().toString(),
-            text: result[0].transcript,
-            timestamp: new Date(),
-            isFinal: true,
-          };
-          setTranscript(prev => [...prev, newEntry]);
-          setInterimText('');
-        } else {
-          interimTranscript += result[0].transcript;
+          finalTranscript += result[0].transcript + ' ';
         }
       }
-      
-      setInterimText(interimTranscript);
+
+      if (finalTranscript) {
+        setTranscript(prev => prev + finalTranscript);
+        errorCountRef.current = 0; // Reset error count on success
+      }
     };
 
-    recognition.onerror = (event) => {
-      console.error('Speech recognition error:', event.error);
+    recognition.onerror = (event: any) => {
+      console.log('Speech recognition error:', event.error);
+
+      // Only show toast for critical errors, not network/no-speech
       if (event.error === 'not-allowed') {
         toast({
           title: 'Không có quyền truy cập',
-          description: 'Vui lòng cho phép truy cập microphone để sử dụng tính năng này.',
+          description: 'Vui lòng cho phép truy cập microphone trong cài đặt trình duyệt.',
           variant: 'destructive',
         });
+        setIsListening(false);
+      } else if (event.error === 'network') {
+        // Network errors are common, just log them
+        errorCountRef.current++;
+        if (errorCountRef.current >= 5) {
+          toast({
+            title: 'Lỗi kết nối',
+            description: 'Kiểm tra kết nối mạng của bạn.',
+            variant: 'destructive',
+          });
+          errorCountRef.current = 0;
+        }
       }
-      setIsListening(false);
+      // Ignore 'no-speech' and 'aborted' errors - they're normal
     };
 
     recognition.onend = () => {
-      if (isListening) {
-        recognition.start();
+      // Restart if still supposed to be listening
+      if (isListeningRef.current && recognitionRef.current) {
+        try {
+          setTimeout(() => {
+            if (isListeningRef.current && recognitionRef.current) {
+              recognitionRef.current.start();
+            }
+          }, 100);
+        } catch (e) {
+          console.log('Recognition restart failed:', e);
+        }
       }
     };
 
-    recognitionRef.current = recognition;
-
-    return () => {
-      recognition.stop();
-    };
-  }, [language, isListening, toast]);
+    return recognition;
+  }, [language, toast]);
 
   const startListening = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
+      // Get microphone with high quality settings
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 44100,
+          channelCount: 1,
+        }
+      });
+      streamRef.current = stream;
+
+      // Setup audio context for visualizer with gain boost
       const audioContext = new AudioContext();
+      audioContextRef.current = audioContext;
       const source = audioContext.createMediaStreamSource(stream);
+
+      // Add gain node to boost audio
+      const gainNode = audioContext.createGain();
+      gainNode.gain.value = 2.0; // Boost audio by 2x
+
       const analyserNode = audioContext.createAnalyser();
       analyserNode.fftSize = 256;
-      source.connect(analyserNode);
+
+      source.connect(gainNode);
+      gainNode.connect(analyserNode);
       setAnalyser(analyserNode);
 
-      if (recognitionRef.current) {
-        recognitionRef.current.lang = language;
-        recognitionRef.current.start();
+      // Setup media recorder with high quality
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : 'audio/webm',
+        audioBitsPerSecond: 128000,
+      });
+      mediaRecorderRef.current = mediaRecorder;
+      chunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunksRef.current.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        const url = URL.createObjectURL(blob);
+        setAudioUrl(url);
+      };
+
+      // Record in smaller chunks for better quality
+      mediaRecorder.start(1000);
+
+      // Start speech recognition
+      const recognition = initRecognition();
+      if (recognition) {
+        recognitionRef.current = recognition;
+        recognition.start();
         setIsListening(true);
+        errorCountRef.current = 0;
       }
     } catch (error) {
-      console.error('Error starting listening:', error);
+      console.error('Error starting:', error);
       toast({
         title: 'Lỗi',
-        description: 'Không thể khởi động nhận dạng giọng nói.',
+        description: 'Không thể truy cập microphone. Vui lòng kiểm tra quyền truy cập.',
         variant: 'destructive',
       });
     }
   };
 
   const stopListening = () => {
+    setIsListening(false);
+
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-      setAnalyser(null);
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {
+        // Ignore stop errors
+      }
+      recognitionRef.current = null;
+    }
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+    }
+
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      audioContextRef.current.close();
+    }
+
+    setAnalyser(null);
+  };
+
+  // Translate recognized text
+  const handleTranslate = async () => {
+    if (!transcript.trim()) return;
+
+    const sourceLang = languages.find(l => l.code === language)?.shortCode || 'vi';
+
+    setIsTranslating(true);
+    try {
+      const response = await apiTranslate(transcript, sourceLang, targetLang);
+      setTranslatedText(response.translated_text);
+    } catch (error) {
+      console.error('Translation error:', error);
+      setTranslatedText('Lỗi dịch. Vui lòng thử lại.');
+    } finally {
+      setIsTranslating(false);
     }
   };
 
-  const copyToClipboard = () => {
-    const fullText = transcript.map(t => t.text).join(' ');
-    navigator.clipboard.writeText(fullText);
-    setCopied(true);
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
     toast({
       title: 'Đã sao chép',
-      description: 'Văn bản đã được sao chép vào clipboard.',
+      description: 'Văn bản đã được sao chép vào clipboard',
     });
-    setTimeout(() => setCopied(false), 2000);
   };
 
-  const clearTranscript = () => {
-    setTranscript([]);
-    setInterimText('');
+  const handleClear = () => {
+    setTranscript('');
+    setTranslatedText('');
+    setAudioUrl(null);
   };
 
-  if (!isSupported) {
-    return (
-      <section id="speech-to-text" className="py-24 relative bg-gradient-to-b from-card/30 to-background">
-        <div className="container mx-auto px-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center"
-          >
-            <h2 className="text-4xl font-bold mb-4">
-              <span className="gradient-text">Speech to Text</span>
-            </h2>
-            <p className="text-destructive">
-              Trình duyệt của bạn không hỗ trợ nhận dạng giọng nói. 
-              Vui lòng sử dụng Chrome hoặc Edge.
-            </p>
-          </motion.div>
-        </div>
-      </section>
-    );
-  }
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) { }
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close();
+      }
+    };
+  }, []);
 
   return (
-    <section id="speech-to-text" className="py-24 relative bg-gradient-to-b from-card/30 to-background">
+    <section id="speech-to-text" className="py-24 relative">
       <div className="container mx-auto px-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -183,22 +284,23 @@ export const SpeechToText = () => {
             <span className="gradient-text">Speech to Text</span>
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            Nhận dạng giọng nói và chuyển đổi thành văn bản theo thời gian thực. 
-            Hỗ trợ nhiều ngôn ngữ khác nhau.
+            Nhận dạng giọng nói và chuyển đổi thành văn bản theo thời gian thực.
+            <br />
+            <span className="text-xs">Yêu cầu: Chrome/Edge + Kết nối internet</span>
           </p>
         </motion.div>
 
-        <div className="max-w-3xl mx-auto">
-          {/* Controls */}
+        <div className="max-w-4xl mx-auto">
+          {/* Recording Controls */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             className="glass-card p-6 mb-6"
           >
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <div className="flex flex-wrap items-center gap-4 mb-4">
               <Select value={language} onValueChange={setLanguage}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-40">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -210,45 +312,38 @@ export const SpeechToText = () => {
                 </SelectContent>
               </Select>
 
-              <div className="flex gap-3">
-                <GlowButton
-                  onClick={isListening ? stopListening : startListening}
-                  variant={isListening ? 'accent' : 'primary'}
-                  size="lg"
-                >
-                  {isListening ? (
-                    <>
-                      <MicOff className="w-5 h-5" /> Dừng
-                    </>
-                  ) : (
-                    <>
-                      <Mic className="w-5 h-5" /> Bắt Đầu
-                    </>
-                  )}
-                </GlowButton>
-              </div>
+              <GlowButton
+                onClick={isListening ? stopListening : startListening}
+                variant={isListening ? 'accent' : 'primary'}
+                size="lg"
+              >
+                {isListening ? (
+                  <>
+                    <MicOff className="w-5 h-5" /> Dừng Ghi
+                  </>
+                ) : (
+                  <>
+                    <Mic className="w-5 h-5" /> Bắt Đầu Ghi
+                  </>
+                )}
+              </GlowButton>
+
+              {isListening && (
+                <span className="text-sm text-muted-foreground animate-pulse">
+                  Đang lắng nghe...
+                </span>
+              )}
             </div>
 
-            {/* Visualizer */}
             <AudioVisualizer
               analyser={analyser}
               isActive={isListening}
-              className="h-24"
+              className="h-24 mb-4"
             />
 
-            {isListening && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="mt-4 flex items-center justify-center gap-2 text-primary"
-              >
-                <motion.div
-                  className="w-2 h-2 rounded-full bg-primary"
-                  animate={{ scale: [1, 1.5, 1] }}
-                  transition={{ duration: 1, repeat: Infinity }}
-                />
-                Đang lắng nghe...
-              </motion.div>
+            {/* Audio playback */}
+            {audioUrl && !isListening && (
+              <audio controls src={audioUrl} className="w-full" />
             )}
           </motion.div>
 
@@ -257,68 +352,77 @@ export const SpeechToText = () => {
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="glass-card p-6"
+            className="glass-card p-6 mb-6"
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold flex items-center gap-2">
-                <FileText className="w-5 h-5 text-primary" />
-                Văn Bản Nhận Dạng
-              </h3>
+              <h3 className="font-semibold">Văn Bản Nhận Dạng</h3>
               <div className="flex gap-2">
-                {transcript.length > 0 && (
-                  <>
-                    <GlowButton
-                      onClick={copyToClipboard}
-                      variant="outline"
-                      size="sm"
-                    >
-                      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                      {copied ? 'Đã sao chép' : 'Sao chép'}
-                    </GlowButton>
-                    <GlowButton
-                      onClick={clearTranscript}
-                      variant="outline"
-                      size="sm"
-                    >
-                      <Trash2 className="w-4 h-4" /> Xóa
-                    </GlowButton>
-                  </>
-                )}
+                <GlowButton onClick={() => handleCopy(transcript)} variant="outline" size="sm" disabled={!transcript}>
+                  <Copy className="w-4 h-4" />
+                </GlowButton>
+                <GlowButton onClick={handleClear} variant="outline" size="sm" disabled={!transcript}>
+                  <Trash2 className="w-4 h-4" />
+                </GlowButton>
               </div>
             </div>
 
-            <div className="min-h-[200px] p-4 rounded-lg bg-background/50 border border-border/50">
-              {transcript.length === 0 && !interimText ? (
-                <p className="text-muted-foreground text-center py-8">
-                  Nhấn "Bắt Đầu" và nói để chuyển đổi giọng nói thành văn bản
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {transcript.map((entry) => (
-                    <motion.div
-                      key={entry.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="text-foreground"
-                    >
-                      <span className="text-xs text-muted-foreground mr-2">
-                        {entry.timestamp.toLocaleTimeString()}
-                      </span>
-                      {entry.text}
-                    </motion.div>
-                  ))}
-                  {interimText && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="text-muted-foreground italic"
-                    >
-                      {interimText}
-                    </motion.div>
-                  )}
-                </div>
-              )}
+            <Textarea
+              value={transcript}
+              onChange={(e) => setTranscript(e.target.value)}
+              placeholder="Nhấn 'Bắt Đầu Ghi' và nói để chuyển đổi giọng nói thành văn bản..."
+              className="min-h-[120px] bg-background/50 border-border/50"
+            />
+          </motion.div>
+
+          {/* Translation */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="glass-card p-6"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold">Dịch Văn Bản</h3>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Dịch sang:</span>
+                <Select value={targetLang} onValueChange={setTargetLang}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {languages.map((lang) => (
+                      <SelectItem key={lang.shortCode} value={lang.shortCode}>
+                        {lang.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <GlowButton
+                  onClick={handleTranslate}
+                  disabled={!transcript.trim()}
+                  isLoading={isTranslating}
+                  variant="secondary"
+                  size="sm"
+                >
+                  <Languages className="w-4 h-4" /> Dịch
+                </GlowButton>
+              </div>
             </div>
+
+            <Textarea
+              value={translatedText}
+              onChange={(e) => setTranslatedText(e.target.value)}
+              placeholder="Văn bản dịch sẽ xuất hiện ở đây..."
+              className="min-h-[120px] bg-background/50 border-border/50"
+            />
+
+            {translatedText && (
+              <div className="mt-3 flex justify-end">
+                <GlowButton onClick={() => handleCopy(translatedText)} variant="outline" size="sm">
+                  <Copy className="w-4 h-4" /> Sao Chép
+                </GlowButton>
+              </div>
+            )}
           </motion.div>
         </div>
       </div>

@@ -1,40 +1,12 @@
 import { motion } from 'framer-motion';
-import { Play, Sparkles } from 'lucide-react';
+import { Play } from 'lucide-react';
 import { GlowButton } from '../ui/GlowButton';
 
 export const HeroSection = () => {
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
-      {/* Background effects */}
-      <div className="absolute inset-0 bg-gradient-mesh opacity-50" />
-      <motion.div
-        className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-[128px]"
-        animate={{
-          scale: [1, 1.2, 1],
-          opacity: [0.3, 0.5, 0.3],
-        }}
-        transition={{ duration: 8, repeat: Infinity }}
-      />
-      <motion.div
-        className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-secondary/20 rounded-full blur-[128px]"
-        animate={{
-          scale: [1.2, 1, 1.2],
-          opacity: [0.3, 0.5, 0.3],
-        }}
-        transition={{ duration: 8, repeat: Infinity, delay: 2 }}
-      />
-
+    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20 bg-background">
       <div className="container mx-auto px-6 relative z-10">
         <div className="text-center max-w-4xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/30 mb-8"
-          >
-            <Sparkles className="w-4 h-4 text-primary" />
-            <span className="text-sm text-primary">Công nghệ AI tiên tiến nhất</span>
-          </motion.div>
-
           <motion.h1
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
@@ -52,7 +24,7 @@ export const HeroSection = () => {
             transition={{ delay: 0.2 }}
             className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto"
           >
-            Nền tảng xử lý âm thanh chuyên nghiệp với AI. Biến đổi giọng nói, 
+            Nền tảng xử lý âm thanh chuyên nghiệp. Biến đổi giọng nói,
             lọc nhiễu, chuyển đổi văn bản ↔ giọng nói trong thời gian thực.
           </motion.p>
 

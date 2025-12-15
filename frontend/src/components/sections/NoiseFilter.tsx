@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, Filter, Play, Square, Download, Volume2 } from 'lucide-react';
+import { Upload, Filter, Download, Volume2 } from 'lucide-react';
 import { GlowButton } from '../ui/GlowButton';
 import { AudioVisualizer } from '../ui/AudioVisualizer';
 import { Slider } from '../ui/slider';
@@ -23,7 +23,7 @@ export const NoiseFilter = () => {
   const [selectedFilter, setSelectedFilter] = useState<FilterType>('noise');
   const [intensity, setIntensity] = useState(50);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
-  
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
@@ -39,29 +39,27 @@ export const NoiseFilter = () => {
 
   const applyFilter = async () => {
     if (!file) return;
-    
+
     setIsProcessing(true);
-    
-    // Simulate processing (in real app, this would be actual audio processing)
+
+    // Simulate processing
     await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // For demo, we'll apply a simple filter using Web Audio API
+
     const audioContext = new AudioContext();
     const arrayBuffer = await file.arrayBuffer();
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-    
+
     const offlineContext = new OfflineAudioContext(
       audioBuffer.numberOfChannels,
       audioBuffer.length,
       audioBuffer.sampleRate
     );
-    
+
     const source = offlineContext.createBufferSource();
     source.buffer = audioBuffer;
-    
-    // Apply different filters based on selection
+
     let filterNode: BiquadFilterNode;
-    
+
     switch (selectedFilter) {
       case 'noise':
         filterNode = offlineContext.createBiquadFilter();
@@ -86,55 +84,21 @@ export const NoiseFilter = () => {
         filterNode.Q.value = intensity / 5;
         break;
     }
-    
+
     source.connect(filterNode);
     filterNode.connect(offlineContext.destination);
     source.start();
-    
+
     const renderedBuffer = await offlineContext.startRendering();
-    
-    // Convert to blob
+
     const wavBlob = audioBufferToWav(renderedBuffer);
     const url = URL.createObjectURL(wavBlob);
     setProcessedUrl(url);
     setIsProcessing(false);
   };
 
-  const playAudio = (url: string) => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
-    
-    const audio = new Audio(url);
-    audioRef.current = audio;
-    
-    const audioContext = new AudioContext();
-    audioContextRef.current = audioContext;
-    
-    const source = audioContext.createMediaElementSource(audio);
-    const analyserNode = audioContext.createAnalyser();
-    analyserNode.fftSize = 256;
-    
-    source.connect(analyserNode);
-    analyserNode.connect(audioContext.destination);
-    
-    setAnalyser(analyserNode);
-    
-    audio.onended = () => setIsPlaying(false);
-    audio.play();
-    setIsPlaying(true);
-  };
-
-  const stopPlayback = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      setIsPlaying(false);
-    }
-  };
-
   return (
-    <section id="lọc-nhiễu" className="py-24 relative bg-gradient-to-b from-background to-card/30">
+    <section id="noise-filter" className="py-24 relative bg-gradient-to-b from-background to-card/30">
       <div className="container mx-auto px-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -146,7 +110,7 @@ export const NoiseFilter = () => {
             <span className="gradient-text">Lọc Nhiễu Âm Thanh</span>
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            Loại bỏ tiếng ồn, tiếng vọng, nhạc nền và các âm thanh không mong muốn 
+            Loại bỏ tiếng ồn, tiếng vọng, nhạc nền và các âm thanh không mong muốn
             khỏi file ghi âm của bạn.
           </p>
         </motion.div>
@@ -176,24 +140,18 @@ export const NoiseFilter = () => {
                 </p>
               </div>
             </label>
+
+            {/* Original Audio Player */}
+            {audioUrl && (
+              <div className="mt-6">
+                <p className="text-sm text-muted-foreground mb-2">Âm thanh gốc:</p>
+                <audio controls src={audioUrl} className="w-full" />
+              </div>
+            )}
           </motion.div>
 
           {audioUrl && (
             <>
-              {/* Visualizer */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="glass-card p-6 mb-8"
-              >
-                <AudioVisualizer
-                  analyser={analyser}
-                  isActive={isPlaying}
-                  variant="waveform"
-                  className="h-32"
-                />
-              </motion.div>
-
               {/* Filter Selection */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -206,15 +164,13 @@ export const NoiseFilter = () => {
                     onClick={() => setSelectedFilter(filter.id)}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    className={`p-4 rounded-xl border transition-all text-left ${
-                      selectedFilter === filter.id
+                    className={`p-4 rounded-xl border transition-all text-left ${selectedFilter === filter.id
                         ? 'bg-primary/20 border-primary'
                         : 'bg-card/50 border-border hover:border-primary/50'
-                    }`}
+                      }`}
                   >
-                    <Filter className={`w-5 h-5 mb-2 ${
-                      selectedFilter === filter.id ? 'text-primary' : 'text-muted-foreground'
-                    }`} />
+                    <Filter className={`w-5 h-5 mb-2 ${selectedFilter === filter.id ? 'text-primary' : 'text-muted-foreground'
+                      }`} />
                     <div className="font-medium">{filter.name}</div>
                     <div className="text-xs text-muted-foreground">{filter.description}</div>
                   </motion.button>
@@ -243,51 +199,40 @@ export const NoiseFilter = () => {
                 />
               </motion.div>
 
-              {/* Controls */}
-              <div className="flex flex-wrap justify-center gap-4">
-                <GlowButton
-                  onClick={() => playAudio(audioUrl)}
-                  disabled={isPlaying}
-                  variant="outline"
-                >
-                  <Play className="w-4 h-4" /> Phát Gốc
-                </GlowButton>
-                
+              {/* Apply Button */}
+              <div className="flex justify-center mb-8">
                 <GlowButton
                   onClick={applyFilter}
                   isLoading={isProcessing}
+                  size="lg"
                 >
-                  <Filter className="w-4 h-4" /> Áp Dụng Bộ Lọc
+                  <Filter className="w-5 h-5" /> Áp Dụng Bộ Lọc
                 </GlowButton>
-
-                {processedUrl && (
-                  <>
-                    <GlowButton
-                      onClick={() => playAudio(processedUrl)}
-                      variant="secondary"
-                    >
-                      <Play className="w-4 h-4" /> Phát Đã Lọc
-                    </GlowButton>
-                    <GlowButton
-                      onClick={() => {
-                        const a = document.createElement('a');
-                        a.href = processedUrl;
-                        a.download = 'filtered-audio.wav';
-                        a.click();
-                      }}
-                      variant="outline"
-                    >
-                      <Download className="w-4 h-4" /> Tải Xuống
-                    </GlowButton>
-                  </>
-                )}
-
-                {isPlaying && (
-                  <GlowButton onClick={stopPlayback} variant="accent">
-                    <Square className="w-4 h-4" /> Dừng
-                  </GlowButton>
-                )}
               </div>
+
+              {/* Processed Audio */}
+              {processedUrl && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="glass-card p-6"
+                >
+                  <p className="text-sm text-muted-foreground mb-2">Âm thanh đã lọc:</p>
+                  <audio controls src={processedUrl} className="w-full mb-4" />
+                  <GlowButton
+                    onClick={() => {
+                      const a = document.createElement('a');
+                      a.href = processedUrl;
+                      a.download = 'filtered-audio.wav';
+                      a.click();
+                    }}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    <Download className="w-4 h-4" /> Tải Xuống
+                  </GlowButton>
+                </motion.div>
+              )}
             </>
           )}
         </div>

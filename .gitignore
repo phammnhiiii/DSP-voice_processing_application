@@ -54,6 +54,7 @@ Thumbs.db
 
 # ----- Project Specific -----
 # Data files (generated at runtime)
+data/
 data/raw/
 data/processed/
 
