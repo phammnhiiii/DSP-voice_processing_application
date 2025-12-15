@@ -14,6 +14,11 @@ const effects: { id: VoiceEffect; name: string }[] = [
   { id: 'echo', name: 'Echo' },
   { id: 'electronic', name: 'Electronic' },
   { id: 'stutter', name: 'Stutter' },
+  { id: 'whisper', name: 'Whisper' },
+  { id: 'distortion', name: 'Distortion' },
+  { id: 'reverse', name: 'Reverse' },
+  { id: 'monster', name: 'Monster' },
+  { id: 'telephone', name: 'Telephone' },
   { id: 'process_voice', name: 'Denoise' },
 ];
 

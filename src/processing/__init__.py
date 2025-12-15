@@ -5,6 +5,11 @@ from .effects import (
     echo_effect,
     electronic_voice_effect,
     stutter_effect,
+    whisper_effect,
+    distortion_effect,
+    reverse_effect,
+    monster_effect,
+    telephone_effect,
 )
 from .filters import process_voice
 from .speech import text_to_speech, speech_to_text
@@ -15,6 +20,11 @@ __all__ = [
     "echo_effect",
     "electronic_voice_effect",
     "stutter_effect",
+    "whisper_effect",
+    "distortion_effect",
+    "reverse_effect",
+    "monster_effect",
+    "telephone_effect",
     "process_voice",
     "text_to_speech",
     "speech_to_text",

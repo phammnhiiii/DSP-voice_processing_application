@@ -17,6 +17,11 @@ from src.processing import (
     echo_effect,
     electronic_voice_effect,
     stutter_effect,
+    whisper_effect,
+    distortion_effect,
+    reverse_effect,
+    monster_effect,
+    telephone_effect,
     process_voice,
     text_to_speech,
     speech_to_text,
@@ -35,10 +40,30 @@ os.makedirs(RAW_AUDIO_DIR, exist_ok=True)
 
 
 def apply_noise_filter(audio_path: str) -> str:
-    """Apply noise filtering to audio: lowpass + remove non-voice."""
+    """Apply noise filtering to audio using Spectral Subtraction."""
     y, sr = librosa.load(audio_path)
-    y_filtered = butter_lowpass_filter(y, 3000, sr)
-    y_clean = remove_non_voice_sounds(y_filtered, sr)
+    
+    # Spectral Subtraction - thông minh hơn lowpass+bandpass
+    # Phân tích và trừ tiếng ồn, giữ giọng tự nhiên hơn
+    noise_samples = int(0.1 * sr)
+    if len(y) > noise_samples:
+        noise_profile = np.abs(np.fft.fft(y[:noise_samples]))
+        noise_estimate = np.mean(noise_profile) * 0.5  # noise_reduce = 0.5
+        
+        Y = np.fft.fft(y)
+        magnitude = np.abs(Y)
+        phase = np.angle(Y)
+        
+        magnitude = np.maximum(magnitude - noise_estimate, 0)
+        Y_clean = magnitude * np.exp(1j * phase)
+        y_clean = np.fft.ifft(Y_clean).real
+    else:
+        y_clean = y
+    
+    # Normalize
+    peak = np.max(np.abs(y_clean))
+    if peak > 0:
+        y_clean = y_clean * (0.95 / peak)
     
     with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_file:
         sf.write(temp_file.name, y_clean, sr)
@@ -101,6 +126,11 @@ async def process_audio_endpoint(
             "echo": lambda: echo_effect(audio_to_process, delay),
             "electronic": lambda: electronic_voice_effect(audio_to_process),
             "stutter": lambda: stutter_effect(audio_to_process, repeat),
+            "whisper": lambda: whisper_effect(audio_to_process),
+            "distortion": lambda: distortion_effect(audio_to_process),
+            "reverse": lambda: reverse_effect(audio_to_process),
+            "monster": lambda: monster_effect(audio_to_process),
+            "telephone": lambda: telephone_effect(audio_to_process),
             "process_voice": lambda: process_voice(audio_to_process, delay=delay),
         }
 

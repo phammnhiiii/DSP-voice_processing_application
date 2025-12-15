@@ -101,13 +101,24 @@ export type DSPEffect =
     | 'echo'
     | 'electronic'
     | 'stutter'
+    | 'whisper'
+    | 'distortion'
+    | 'reverse'
+    | 'monster'
+    | 'telephone'
     | 'process_voice';
 
-export const DSP_EFFECTS: { id: DSPEffect; name: string; icon: string }[] = [
-    { id: 'chipmunk', name: 'Chipmunk', icon: '🐿️' },
-    { id: 'robot', name: 'Robot', icon: '🤖' },
-    { id: 'echo', name: 'Tiếng Vọng', icon: '🔊' },
-    { id: 'electronic', name: 'Điện Tử', icon: '⚡' },
-    { id: 'stutter', name: 'Nói Lắp', icon: '🔁' },
-    { id: 'process_voice', name: 'Xử Lý Giọng', icon: '🎙️' },
+export const DSP_EFFECTS: { id: DSPEffect; name: string }[] = [
+    { id: 'chipmunk', name: 'Chipmunk' },
+    { id: 'robot', name: 'Robot' },
+    { id: 'echo', name: 'Echo' },
+    { id: 'electronic', name: 'Electronic' },
+    { id: 'stutter', name: 'Stutter' },
+    { id: 'whisper', name: 'Whisper' },
+    { id: 'distortion', name: 'Distortion' },
+    { id: 'reverse', name: 'Reverse' },
+    { id: 'monster', name: 'Monster' },
+    { id: 'telephone', name: 'Telephone' },
+    { id: 'process_voice', name: 'Denoise' },
 ];
+
