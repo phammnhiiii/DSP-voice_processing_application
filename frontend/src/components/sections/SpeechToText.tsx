@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Mic, MicOff, Languages, Copy, Trash2, Loader2 } from 'lucide-react';
+import { Mic, MicOff, Languages, Copy, Trash2, Loader2, Volume2 } from 'lucide-react';
 import { GlowButton } from '../ui/GlowButton';
 import { AudioVisualizer } from '../ui/AudioVisualizer';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Textarea } from '../ui/textarea';
-import { translateText as apiTranslate, speechToText as apiSpeechToText } from '@/api';
+import { translateText as apiTranslate, speechToText as apiSpeechToText, convertTextToSpeech, getFileUrl } from '@/api';
 import { useToast } from '@/hooks/use-toast';
 
 const languages = [
@@ -30,6 +30,8 @@ export const SpeechToText = () => {
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [translatedAudioUrl, setTranslatedAudioUrl] = useState<string | null>(null);
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -43,7 +45,6 @@ export const SpeechToText = () => {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      // Audio context for visualizer
       const audioContext = new AudioContext();
       audioContextRef.current = audioContext;
       const source = audioContext.createMediaStreamSource(stream);
@@ -52,7 +53,6 @@ export const SpeechToText = () => {
       source.connect(analyserNode);
       setAnalyser(analyserNode);
 
-      // MediaRecorder
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
@@ -69,7 +69,6 @@ export const SpeechToText = () => {
         const url = URL.createObjectURL(blob);
         setAudioUrl(url);
 
-        // Cleanup
         stream.getTracks().forEach(track => track.stop());
         setAnalyser(null);
       };
@@ -93,7 +92,6 @@ export const SpeechToText = () => {
     }
   };
 
-  // Send audio to backend for speech recognition
   const handleRecognize = async () => {
     if (!audioBlob) {
       toast({
@@ -124,16 +122,29 @@ export const SpeechToText = () => {
     }
   };
 
-  // Translate recognized text
+  // Translate and generate TTS
   const handleTranslate = async () => {
     if (!transcript.trim()) return;
 
     const sourceLang = languages.find(l => l.code === language)?.shortCode || 'vi';
 
     setIsTranslating(true);
+    setTranslatedAudioUrl(null);
+
     try {
       const response = await apiTranslate(transcript, sourceLang, targetLang);
       setTranslatedText(response.translated_text);
+
+      // Also generate TTS for translated text
+      setIsGeneratingAudio(true);
+      try {
+        const ttsResponse = await convertTextToSpeech(response.translated_text, targetLang);
+        setTranslatedAudioUrl(getFileUrl(ttsResponse.audio_url));
+      } catch (ttsError) {
+        console.error('TTS error:', ttsError);
+      } finally {
+        setIsGeneratingAudio(false);
+      }
     } catch (error) {
       console.error('Translation error:', error);
       setTranslatedText('Lỗi dịch. Vui lòng thử lại.');
@@ -155,9 +166,9 @@ export const SpeechToText = () => {
     setTranslatedText('');
     setAudioUrl(null);
     setAudioBlob(null);
+    setTranslatedAudioUrl(null);
   };
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (streamRef.current) {
@@ -182,7 +193,7 @@ export const SpeechToText = () => {
             <span className="gradient-text">Speech to Text</span>
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            Ghi âm và nhận diện giọng nói bằng Google Speech Recognition (qua server).
+            Ghi âm và nhận diện giọng nói bằng Google Speech Recognition.
           </p>
         </motion.div>
 
@@ -237,7 +248,6 @@ export const SpeechToText = () => {
               className="h-24 mb-4"
             />
 
-            {/* Audio playback */}
             {audioUrl && !isRecording && (
               <div className="space-y-3">
                 <audio controls src={audioUrl} className="w-full" />
@@ -281,7 +291,7 @@ export const SpeechToText = () => {
             <Textarea
               value={transcript}
               onChange={(e) => setTranscript(e.target.value)}
-              placeholder="Văn bản nhận diện sẽ xuất hiện ở đây sau khi nhấn 'Nhận Diện Giọng Nói'..."
+              placeholder="Văn bản nhận diện sẽ xuất hiện ở đây..."
               className="min-h-[120px] bg-background/50 border-border/50"
             />
           </motion.div>
@@ -328,7 +338,21 @@ export const SpeechToText = () => {
               className="min-h-[120px] bg-background/50 border-border/50"
             />
 
-            {translatedText && (
+            {/* Audio control for translated text */}
+            {isGeneratingAudio && (
+              <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Đang tạo audio...
+              </div>
+            )}
+
+            {translatedAudioUrl && (
+              <div className="mt-4">
+                <audio controls src={translatedAudioUrl} className="w-full" />
+              </div>
+            )}
+
+            {translatedText && !translatedAudioUrl && !isGeneratingAudio && (
               <div className="mt-3 flex justify-end">
                 <GlowButton onClick={() => handleCopy(translatedText)} variant="outline" size="sm">
                   <Copy className="w-4 h-4" /> Sao Chép
