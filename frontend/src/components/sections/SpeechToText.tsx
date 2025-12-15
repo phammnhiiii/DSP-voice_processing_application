@@ -1,11 +1,11 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Mic, MicOff, Languages, Copy, Trash2 } from 'lucide-react';
+import { Mic, MicOff, Languages, Copy, Trash2, Loader2 } from 'lucide-react';
 import { GlowButton } from '../ui/GlowButton';
 import { AudioVisualizer } from '../ui/AudioVisualizer';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Textarea } from '../ui/textarea';
-import { translateText as apiTranslate } from '@/api';
+import { translateText as apiTranslate, speechToText as apiSpeechToText } from '@/api';
 import { useToast } from '@/hooks/use-toast';
 
 const languages = [
@@ -20,7 +20,8 @@ const languages = [
 ];
 
 export const SpeechToText = () => {
-  const [isListening, setIsListening] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [translatedText, setTranslatedText] = useState('');
   const [language, setLanguage] = useState('vi-VN');
@@ -28,137 +29,31 @@ export const SpeechToText = () => {
   const [isTranslating, setIsTranslating] = useState(false);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
 
-  const recognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const isListeningRef = useRef(false);
-  const errorCountRef = useRef(0);
 
   const { toast } = useToast();
 
-  // Keep ref in sync with state
-  useEffect(() => {
-    isListeningRef.current = isListening;
-  }, [isListening]);
-
-  // Initialize speech recognition
-  const initRecognition = useCallback(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      toast({
-        title: 'Không hỗ trợ',
-        description: 'Vui lòng sử dụng Chrome hoặc Edge để nhận diện giọng nói.',
-        variant: 'destructive',
-      });
-      return null;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = language;
-
-    recognition.onresult = (event: any) => {
-      let finalTranscript = '';
-
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        if (result.isFinal) {
-          finalTranscript += result[0].transcript + ' ';
-        }
-      }
-
-      if (finalTranscript) {
-        setTranscript(prev => prev + finalTranscript);
-        errorCountRef.current = 0; // Reset error count on success
-      }
-    };
-
-    recognition.onerror = (event: any) => {
-      console.log('Speech recognition error:', event.error);
-
-      // Only show toast for critical errors, not network/no-speech
-      if (event.error === 'not-allowed') {
-        toast({
-          title: 'Không có quyền truy cập',
-          description: 'Vui lòng cho phép truy cập microphone trong cài đặt trình duyệt.',
-          variant: 'destructive',
-        });
-        setIsListening(false);
-      } else if (event.error === 'network') {
-        // Network errors are common, just log them
-        errorCountRef.current++;
-        if (errorCountRef.current >= 5) {
-          toast({
-            title: 'Lỗi kết nối',
-            description: 'Kiểm tra kết nối mạng của bạn.',
-            variant: 'destructive',
-          });
-          errorCountRef.current = 0;
-        }
-      }
-      // Ignore 'no-speech' and 'aborted' errors - they're normal
-    };
-
-    recognition.onend = () => {
-      // Restart if still supposed to be listening
-      if (isListeningRef.current && recognitionRef.current) {
-        try {
-          setTimeout(() => {
-            if (isListeningRef.current && recognitionRef.current) {
-              recognitionRef.current.start();
-            }
-          }, 100);
-        } catch (e) {
-          console.log('Recognition restart failed:', e);
-        }
-      }
-    };
-
-    return recognition;
-  }, [language, toast]);
-
-  const startListening = async () => {
+  const startRecording = async () => {
     try {
-      // Get microphone with high quality settings
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: 44100,
-          channelCount: 1,
-        }
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      // Setup audio context for visualizer with gain boost
+      // Audio context for visualizer
       const audioContext = new AudioContext();
       audioContextRef.current = audioContext;
       const source = audioContext.createMediaStreamSource(stream);
-
-      // Add gain node to boost audio
-      const gainNode = audioContext.createGain();
-      gainNode.gain.value = 2.0; // Boost audio by 2x
-
       const analyserNode = audioContext.createAnalyser();
       analyserNode.fftSize = 256;
-
-      source.connect(gainNode);
-      gainNode.connect(analyserNode);
+      source.connect(analyserNode);
       setAnalyser(analyserNode);
 
-      // Setup media recorder with high quality
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-          ? 'audio/webm;codecs=opus'
-          : 'audio/webm',
-        audioBitsPerSecond: 128000,
-      });
+      // MediaRecorder
+      const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
 
@@ -170,56 +65,63 @@ export const SpeechToText = () => {
 
       mediaRecorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        setAudioBlob(blob);
         const url = URL.createObjectURL(blob);
         setAudioUrl(url);
+
+        // Cleanup
+        stream.getTracks().forEach(track => track.stop());
+        setAnalyser(null);
       };
 
-      // Record in smaller chunks for better quality
-      mediaRecorder.start(1000);
-
-      // Start speech recognition
-      const recognition = initRecognition();
-      if (recognition) {
-        recognitionRef.current = recognition;
-        recognition.start();
-        setIsListening(true);
-        errorCountRef.current = 0;
-      }
+      mediaRecorder.start();
+      setIsRecording(true);
     } catch (error) {
-      console.error('Error starting:', error);
+      console.error('Error starting recording:', error);
       toast({
         title: 'Lỗi',
-        description: 'Không thể truy cập microphone. Vui lòng kiểm tra quyền truy cập.',
+        description: 'Không thể truy cập microphone.',
         variant: 'destructive',
       });
     }
   };
 
-  const stopListening = () => {
-    setIsListening(false);
-
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {
-        // Ignore stop errors
-      }
-      recognitionRef.current = null;
-    }
-
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  // Send audio to backend for speech recognition
+  const handleRecognize = async () => {
+    if (!audioBlob) {
+      toast({
+        title: 'Chưa có audio',
+        description: 'Vui lòng ghi âm trước.',
+        variant: 'destructive',
+      });
+      return;
     }
 
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+    setIsProcessing(true);
+    try {
+      const response = await apiSpeechToText(audioBlob, language);
+      setTranscript(response.text);
+      toast({
+        title: 'Thành công',
+        description: 'Đã nhận diện giọng nói.',
+      });
+    } catch (error: any) {
+      console.error('STT error:', error);
+      toast({
+        title: 'Lỗi nhận diện',
+        description: error?.response?.data?.error || 'Không thể nhận diện giọng nói.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessing(false);
     }
-
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      audioContextRef.current.close();
-    }
-
-    setAnalyser(null);
   };
 
   // Translate recognized text
@@ -244,7 +146,7 @@ export const SpeechToText = () => {
     navigator.clipboard.writeText(text);
     toast({
       title: 'Đã sao chép',
-      description: 'Văn bản đã được sao chép vào clipboard',
+      description: 'Văn bản đã được sao chép.',
     });
   };
 
@@ -252,16 +154,12 @@ export const SpeechToText = () => {
     setTranscript('');
     setTranslatedText('');
     setAudioUrl(null);
+    setAudioBlob(null);
   };
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-        } catch (e) { }
-      }
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
@@ -284,9 +182,7 @@ export const SpeechToText = () => {
             <span className="gradient-text">Speech to Text</span>
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            Nhận dạng giọng nói và chuyển đổi thành văn bản theo thời gian thực.
-            <br />
-            <span className="text-xs">Yêu cầu: Chrome/Edge + Kết nối internet</span>
+            Ghi âm và nhận diện giọng nói bằng Google Speech Recognition (qua server).
           </p>
         </motion.div>
 
@@ -313,37 +209,53 @@ export const SpeechToText = () => {
               </Select>
 
               <GlowButton
-                onClick={isListening ? stopListening : startListening}
-                variant={isListening ? 'accent' : 'primary'}
+                onClick={isRecording ? stopRecording : startRecording}
+                variant={isRecording ? 'accent' : 'primary'}
                 size="lg"
               >
-                {isListening ? (
+                {isRecording ? (
                   <>
                     <MicOff className="w-5 h-5" /> Dừng Ghi
                   </>
                 ) : (
                   <>
-                    <Mic className="w-5 h-5" /> Bắt Đầu Ghi
+                    <Mic className="w-5 h-5" /> Ghi Âm
                   </>
                 )}
               </GlowButton>
 
-              {isListening && (
+              {isRecording && (
                 <span className="text-sm text-muted-foreground animate-pulse">
-                  Đang lắng nghe...
+                  Đang ghi âm...
                 </span>
               )}
             </div>
 
             <AudioVisualizer
               analyser={analyser}
-              isActive={isListening}
+              isActive={isRecording}
               className="h-24 mb-4"
             />
 
             {/* Audio playback */}
-            {audioUrl && !isListening && (
-              <audio controls src={audioUrl} className="w-full" />
+            {audioUrl && !isRecording && (
+              <div className="space-y-3">
+                <audio controls src={audioUrl} className="w-full" />
+                <GlowButton
+                  onClick={handleRecognize}
+                  isLoading={isProcessing}
+                  variant="secondary"
+                  className="w-full"
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Đang nhận diện...
+                    </>
+                  ) : (
+                    'Nhận Diện Giọng Nói'
+                  )}
+                </GlowButton>
+              </div>
             )}
           </motion.div>
 
@@ -360,7 +272,7 @@ export const SpeechToText = () => {
                 <GlowButton onClick={() => handleCopy(transcript)} variant="outline" size="sm" disabled={!transcript}>
                   <Copy className="w-4 h-4" />
                 </GlowButton>
-                <GlowButton onClick={handleClear} variant="outline" size="sm" disabled={!transcript}>
+                <GlowButton onClick={handleClear} variant="outline" size="sm" disabled={!transcript && !audioUrl}>
                   <Trash2 className="w-4 h-4" />
                 </GlowButton>
               </div>
@@ -369,7 +281,7 @@ export const SpeechToText = () => {
             <Textarea
               value={transcript}
               onChange={(e) => setTranscript(e.target.value)}
-              placeholder="Nhấn 'Bắt Đầu Ghi' và nói để chuyển đổi giọng nói thành văn bản..."
+              placeholder="Văn bản nhận diện sẽ xuất hiện ở đây sau khi nhấn 'Nhận Diện Giọng Nói'..."
               className="min-h-[120px] bg-background/50 border-border/50"
             />
           </motion.div>
