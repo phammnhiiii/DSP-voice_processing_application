@@ -1,6 +1,13 @@
 import { motion } from 'framer-motion';
 import { Waves, Github, Twitter, Mail } from 'lucide-react';
 
+const footerLinks = [
+  { label: 'Biến Đổi Giọng', href: '#transformer' },
+  { label: 'Lọc Nhiễu', href: '#noise-filter' },
+  { label: 'Text to Speech', href: '#text-to-speech' },
+  { label: 'Speech to Text', href: '#speech-to-text' },
+];
+
 export const Footer = () => {
   return (
     <footer className="relative py-16 border-t border-border/30">
@@ -8,15 +15,16 @@ export const Footer = () => {
         <div className="grid md:grid-cols-4 gap-12">
           {/* Brand */}
           <div className="md:col-span-2">
-            <motion.div
+            <motion.a
+              href="#"
               className="flex items-center gap-3 mb-4"
               whileHover={{ scale: 1.02 }}
             >
               <Waves className="w-8 h-8 text-primary" />
               <span className="text-xl font-bold gradient-text">VoiceLab Pro</span>
-            </motion.div>
+            </motion.a>
             <p className="text-muted-foreground max-w-md mb-6">
-              Nền tảng xử lý âm thanh chuyên nghiệp với công nghệ AI tiên tiến. 
+              Nền tảng xử lý âm thanh chuyên nghiệp.
               Biến đổi, lọc nhiễu và chuyển đổi giọng nói một cách dễ dàng.
             </p>
             <div className="flex gap-4">
@@ -33,14 +41,14 @@ export const Footer = () => {
             </div>
           </div>
 
-          {/* Links */}
+          {/* Links - matching header exactly */}
           <div>
             <h4 className="font-semibold mb-4">Tính Năng</h4>
             <ul className="space-y-2">
-              {['Biến đổi giọng', 'Lọc nhiễu', 'Text to Speech', 'Speech to Text'].map((item) => (
-                <li key={item}>
-                  <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
-                    {item}
+              {footerLinks.map((item) => (
+                <li key={item.label}>
+                  <a href={item.href} className="text-muted-foreground hover:text-primary transition-colors">
+                    {item.label}
                   </a>
                 </li>
               ))}

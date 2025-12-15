@@ -34,12 +34,12 @@ export const HeroSection = () => {
             transition={{ delay: 0.3 }}
             className="flex flex-col sm:flex-row items-center justify-center gap-4"
           >
-            <GlowButton size="lg" className="w-full sm:w-auto">
+            <GlowButton size="lg" className="w-full sm:w-auto" onClick={() => document.getElementById('transformer')?.scrollIntoView({ behavior: 'smooth' })}>
               <Play className="w-5 h-5" />
               Bắt Đầu Ngay
             </GlowButton>
-            <GlowButton variant="outline" size="lg" className="w-full sm:w-auto">
-              Xem Demo
+            <GlowButton variant="outline" size="lg" className="w-full sm:w-auto" onClick={() => document.getElementById('noise-filter')?.scrollIntoView({ behavior: 'smooth' })}>
+              Xem Thêm
             </GlowButton>
           </motion.div>
 

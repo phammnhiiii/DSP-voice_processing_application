@@ -2,6 +2,13 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Waves, Moon, Sun } from 'lucide-react';
 
+const navItems = [
+  { label: 'Biến Đổi Giọng', href: '#transformer' },
+  { label: 'Lọc Nhiễu', href: '#noise-filter' },
+  { label: 'Text to Speech', href: '#text-to-speech' },
+  { label: 'Speech to Text', href: '#speech-to-text' },
+];
+
 export const Header = () => {
   const [isDark, setIsDark] = useState(false);
 
@@ -26,13 +33,6 @@ export const Header = () => {
     }
   };
 
-  const navItems = [
-    { label: 'Transformer', href: '#transformer' },
-    { label: 'Lọc Nhiễu', href: '#noise-filter' },
-    { label: 'Text-to-Speech', href: '#text-to-speech' },
-    { label: 'Speech-to-Text', href: '#speech-to-text' },
-  ];
-
   return (
     <motion.header
       initial={{ y: -20, opacity: 0 }}
@@ -40,13 +40,14 @@ export const Header = () => {
       className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/30"
     >
       <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-        <motion.div
+        <motion.a
+          href="#"
           className="flex items-center gap-3"
           whileHover={{ scale: 1.02 }}
         >
           <Waves className="w-8 h-8 text-primary" />
           <span className="text-xl font-bold gradient-text">VoiceLab Pro</span>
-        </motion.div>
+        </motion.a>
 
         <nav className="hidden md:flex items-center gap-8">
           {navItems.map((item, i) => (
