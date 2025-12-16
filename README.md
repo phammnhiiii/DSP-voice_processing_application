@@ -151,6 +151,9 @@ cd DSP-voice_processing_application
 #### 2️⃣ Backend Setup
 
 ```bash
+# Navigate to backend folder
+cd backend
+
 # Create and activate virtual environment
 python3 -m venv venv
 
@@ -162,6 +165,13 @@ venv\Scripts\activate           # Windows
 # Install Python dependencies
 pip install --upgrade pip
 pip install -r requirements.txt
+
+# Setup environment file
+cp .env.example .env
+# Edit .env and add your ElevenLabs API key (optional, for AI voice)
+
+# Go back to root
+cd ..
 ```
 
 #### 3️⃣ Frontend Setup
@@ -172,12 +182,26 @@ npm install
 cd ..
 ```
 
-#### 4️⃣ Environment Configuration
+#### 4️⃣ Run the Application
 
 ```bash
-# Copy environment template
-cp .env.example .env
+# Run both backend and frontend
+./run.sh
 
+# Or run separately:
+./run.sh backend    # Only backend (http://localhost:8000)
+./run.sh frontend   # Only frontend (http://localhost:5173)
+```
+
+#### 5️⃣ Environment Configuration (Optional)
+
+Edit `backend/.env` to add your ElevenLabs API key for AI voice:
+
+```bash
+ELEVENLABS_API_KEY=your_api_key_here
+```
+
+Get your API key at: https://elevenlabs.io/
 # Edit .env with your configuration (optional)
 # nano .env
 ```
