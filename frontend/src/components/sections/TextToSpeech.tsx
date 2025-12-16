@@ -53,6 +53,10 @@ export const TextToSpeech = () => {
   const [cloneStatus, setCloneStatus] = useState('');
   const cloneInputRef = useRef<HTMLInputElement>(null);
 
+  // Legal consent for voice cloning
+  const [hasConsentedClone, setHasConsentedClone] = useState(false);
+  const [showLegalModal, setShowLegalModal] = useState(false);
+
 
   // Fetch ElevenLabs voices when engine changes
   useEffect(() => {
@@ -239,7 +243,38 @@ export const TextToSpeech = () => {
 
                 {/* Clone Voice */}
                 <div className="border-t border-border pt-4">
-                  <Label className="mb-2 block">Clone Giọng Của Bạn</Label>
+                  <div className="flex items-center justify-between mb-3">
+                    <Label>Clone Giọng Của Bạn</Label>
+                    <button
+                      onClick={() => setShowLegalModal(true)}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Điều khoản pháp lý
+                    </button>
+                  </div>
+
+                  {/* Legal Warning - Theme colors */}
+                  <div className="bg-card border border-border rounded-lg p-4 mb-4">
+                    <h4 className="font-semibold mb-2">Cảnh báo pháp lý</h4>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Việc sao chép giọng nói mà không có sự đồng ý là <strong className="text-foreground">bất hợp pháp</strong>.
+                      Bạn chỉ được sử dụng giọng nói của chính mình hoặc có sự cho phép bằng văn bản.
+                    </p>
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={hasConsentedClone}
+                        onChange={(e) => setHasConsentedClone(e.target.checked)}
+                        className="w-5 h-5 mt-0.5 rounded border-border"
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        Tôi xác nhận đây là giọng nói của tôi hoặc tôi có sự đồng ý hợp pháp
+                        để sao chép giọng nói này. Tôi hiểu việc sử dụng sai mục đích có thể
+                        dẫn đến hậu quả pháp lý.
+                      </span>
+                    </label>
+                  </div>
+
                   <div className="flex gap-2 items-end flex-wrap">
                     <div className="flex-1 min-w-[150px]">
                       <Input
@@ -261,10 +296,9 @@ export const TextToSpeech = () => {
                     <GlowButton
                       onClick={() => cloneInputRef.current?.click()}
                       variant="secondary"
-                      disabled={isCloning || !cloneName.trim()}
+                      disabled={isCloning || !cloneName.trim() || !hasConsentedClone}
                       isLoading={isCloning}
                     >
-                      <Upload className="w-4 h-4" />
                       Upload
                     </GlowButton>
                   </div>
@@ -408,6 +442,88 @@ export const TextToSpeech = () => {
           </div>
         </div>
       </div>
+
+      {/* Legal Modal */}
+      {showLegalModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h3 className="font-semibold">Điều Khoản Pháp Lý Chi Tiết</h3>
+              <button
+                onClick={() => setShowLegalModal(false)}
+                className="text-muted-foreground hover:text-foreground text-xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {/* Warning - beige/amber subtle */}
+              <div className="bg-orange-500/5 border border-orange-500/20 rounded-lg p-4">
+                <h4 className="font-semibold mb-2">Cảnh Báo Quan Trọng</h4>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Công nghệ Voice Clone có thể bị lạm dụng cho mục đích xấu. Việc sử dụng sai có thể dẫn đến:
+                </p>
+                <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
+                  <li>Truy cứu trách nhiệm hình sự theo Điều 155-156 Bộ luật Hình sự</li>
+                  <li>Bồi thường thiệt hại dân sự theo Điều 584-608 Bộ luật Dân sự</li>
+                  <li>Xử phạt hành chính từ 10-200 triệu đồng</li>
+                </ul>
+              </div>
+
+              {/* Rights */}
+              <div>
+                <h4 className="font-semibold mb-2">Quy Định Về Quyền Nhân Thân</h4>
+                <p className="text-sm text-muted-foreground">
+                  Theo Điều 32 Bộ luật Dân sự 2015, giọng nói là một phần của quyền về hình ảnh và quyền nhân thân.
+                  Việc sử dụng hình ảnh, giọng nói của cá nhân phải được sự đồng ý của người đó.
+                </p>
+              </div>
+
+              {/* Allowed */}
+              <div>
+                <h4 className="font-semibold mb-2">Trường Hợp Được Phép</h4>
+                <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
+                  <li>Sử dụng giọng nói của chính bạn</li>
+                  <li>Có văn bản đồng ý từ chủ sở hữu giọng nói</li>
+                  <li>Mục đích giáo dục, nghiên cứu không thương mại</li>
+                  <li>Sử dụng trong phạm vi gia đình</li>
+                </ul>
+              </div>
+
+              {/* Forbidden */}
+              <div>
+                <h4 className="font-semibold mb-2">Trường Hợp Bị Cấm</h4>
+                <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
+                  <li>Mạo danh người khác để lừa đảo</li>
+                  <li>Tạo nội dung deepfake gây hại</li>
+                  <li>Phát tán thông tin sai lệch</li>
+                  <li>Xâm phạm đời tư, danh dự người khác</li>
+                  <li>Sử dụng cho hoạt động phạm pháp</li>
+                </ul>
+              </div>
+
+              {/* Contact - blue subtle */}
+              <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-4">
+                <h4 className="font-semibold mb-1">Liên Hệ Hỗ Trợ Pháp Lý</h4>
+                <p className="text-sm text-muted-foreground">
+                  Nếu bạn phát hiện giọng nói của mình bị sử dụng trái phép, vui lòng liên hệ cơ quan công an hoặc luật sư để được hỗ trợ.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer with button */}
+            <div className="p-4 border-t border-border">
+              <button
+                onClick={() => setShowLegalModal(false)}
+                className="w-full py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
+              >
+                Đã hiểu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 };

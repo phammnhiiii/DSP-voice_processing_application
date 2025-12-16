@@ -1,6 +1,28 @@
 import { motion } from 'framer-motion';
 import { Waves, Github, Twitter, Mail } from 'lucide-react';
 
+// ==========================================
+// TÙY CHỈNH FOOTER TẠI ĐÂY
+// ==========================================
+const FOOTER_CONFIG = {
+  // Tên thương hiệu
+  brandName: 'VoiceLab Pro',
+
+  // Mô tả ngắn
+  description: 'Nền tảng xử lý âm thanh chuyên nghiệp. Biến đổi, lọc nhiễu và chuyển đổi giọng nói một cách dễ dàng.',
+
+  // Năm bản quyền
+  copyrightYear: 2024,
+
+  // Links mạng xã hội (thay # bằng URL thực)
+  socialLinks: {
+    github: '#',    // VD: 'https://github.com/yourusername'
+    twitter: '#',   // VD: 'https://twitter.com/yourusername'
+    email: '#',     // VD: 'mailto:your@email.com'
+  },
+};
+// ==========================================
+
 const footerLinks = [
   { label: 'Biến Đổi Giọng', href: '#transformer' },
   { label: 'Lọc Nhiễu', href: '#noise-filter' },
@@ -21,23 +43,33 @@ export const Footer = () => {
               whileHover={{ scale: 1.02 }}
             >
               <Waves className="w-8 h-8 text-primary" />
-              <span className="text-xl font-bold gradient-text">VoiceLab Pro</span>
+              <span className="text-xl font-bold gradient-text">{FOOTER_CONFIG.brandName}</span>
             </motion.a>
             <p className="text-muted-foreground max-w-md mb-6">
-              Nền tảng xử lý âm thanh chuyên nghiệp.
-              Biến đổi, lọc nhiễu và chuyển đổi giọng nói một cách dễ dàng.
+              {FOOTER_CONFIG.description}
             </p>
             <div className="flex gap-4">
-              {[Github, Twitter, Mail].map((Icon, i) => (
-                <motion.a
-                  key={i}
-                  href="#"
-                  whileHover={{ scale: 1.1, y: -2 }}
-                  className="w-10 h-10 rounded-lg bg-card flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                >
-                  <Icon className="w-5 h-5" />
-                </motion.a>
-              ))}
+              <motion.a
+                href={FOOTER_CONFIG.socialLinks.github}
+                whileHover={{ scale: 1.1, y: -2 }}
+                className="w-10 h-10 rounded-lg bg-card flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+              >
+                <Github className="w-5 h-5" />
+              </motion.a>
+              <motion.a
+                href={FOOTER_CONFIG.socialLinks.twitter}
+                whileHover={{ scale: 1.1, y: -2 }}
+                className="w-10 h-10 rounded-lg bg-card flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+              >
+                <Twitter className="w-5 h-5" />
+              </motion.a>
+              <motion.a
+                href={FOOTER_CONFIG.socialLinks.email}
+                whileHover={{ scale: 1.1, y: -2 }}
+                className="w-10 h-10 rounded-lg bg-card flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+              >
+                <Mail className="w-5 h-5" />
+              </motion.a>
             </div>
           </div>
 
@@ -71,10 +103,11 @@ export const Footer = () => {
 
         <div className="mt-12 pt-8 border-t border-border/30 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground">
-            © 2024 VoiceLab Pro. All rights reserved.
+            © {FOOTER_CONFIG.copyrightYear} {FOOTER_CONFIG.brandName}. All rights reserved.
           </p>
           <div className="flex gap-6 text-sm text-muted-foreground">
-            <a href="#" className="hover:text-primary transition-colors">Điều khoản</a>
+            {/* Link điều khoản sử dụng - quan trọng cho voice clone */}
+            <a href="#terms" className="hover:text-primary transition-colors">Điều khoản sử dụng</a>
             <a href="#" className="hover:text-primary transition-colors">Bảo mật</a>
             <a href="#" className="hover:text-primary transition-colors">Cookie</a>
           </div>
