@@ -4,8 +4,7 @@ import { Upload, Filter, Download, Volume2 } from 'lucide-react';
 import { GlowButton } from '../ui/GlowButton';
 import { AudioVisualizer } from '../ui/AudioVisualizer';
 import { Slider } from '../ui/slider';
-
-type FilterType = 'noise' | 'echo' | 'music' | 'siren';
+import { filterAudio, getFileUrl, FilterType } from '@/api';
 
 const filters: { id: FilterType; name: string; description: string }[] = [
   { id: 'noise', name: 'Lọc Nhiễu', description: 'Loại bỏ tiếng ồn nền' },
@@ -42,59 +41,19 @@ export const NoiseFilter = () => {
 
     setIsProcessing(true);
 
-    // Simulate processing
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    const audioContext = new AudioContext();
-    const arrayBuffer = await file.arrayBuffer();
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-
-    const offlineContext = new OfflineAudioContext(
-      audioBuffer.numberOfChannels,
-      audioBuffer.length,
-      audioBuffer.sampleRate
-    );
-
-    const source = offlineContext.createBufferSource();
-    source.buffer = audioBuffer;
-
-    let filterNode: BiquadFilterNode;
-
-    switch (selectedFilter) {
-      case 'noise':
-        filterNode = offlineContext.createBiquadFilter();
-        filterNode.type = 'lowpass';
-        filterNode.frequency.value = 3000 + (100 - intensity) * 50;
-        break;
-      case 'echo':
-        filterNode = offlineContext.createBiquadFilter();
-        filterNode.type = 'highpass';
-        filterNode.frequency.value = 200 + intensity * 5;
-        break;
-      case 'music':
-        filterNode = offlineContext.createBiquadFilter();
-        filterNode.type = 'bandpass';
-        filterNode.frequency.value = 1000;
-        filterNode.Q.value = intensity / 10;
-        break;
-      case 'siren':
-        filterNode = offlineContext.createBiquadFilter();
-        filterNode.type = 'notch';
-        filterNode.frequency.value = 800;
-        filterNode.Q.value = intensity / 5;
-        break;
+    try {
+      // Call backend API for DSP filtering
+      const response = await filterAudio(file, selectedFilter, intensity);
+      const fullUrl = getFileUrl(response.audio_url);
+      if (fullUrl) {
+        setProcessedUrl(fullUrl);
+      }
+    } catch (error) {
+      console.error('Filter error:', error);
+      alert('Lỗi khi áp dụng bộ lọc');
+    } finally {
+      setIsProcessing(false);
     }
-
-    source.connect(filterNode);
-    filterNode.connect(offlineContext.destination);
-    source.start();
-
-    const renderedBuffer = await offlineContext.startRendering();
-
-    const wavBlob = audioBufferToWav(renderedBuffer);
-    const url = URL.createObjectURL(wavBlob);
-    setProcessedUrl(url);
-    setIsProcessing(false);
   };
 
   return (
@@ -165,8 +124,8 @@ export const NoiseFilter = () => {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     className={`p-4 rounded-xl border transition-all text-left ${selectedFilter === filter.id
-                        ? 'bg-primary/20 border-primary'
-                        : 'bg-card/50 border-border hover:border-primary/50'
+                      ? 'bg-primary/20 border-primary'
+                      : 'bg-card/50 border-border hover:border-primary/50'
                       }`}
                   >
                     <Filter className={`w-5 h-5 mb-2 ${selectedFilter === filter.id ? 'text-primary' : 'text-muted-foreground'

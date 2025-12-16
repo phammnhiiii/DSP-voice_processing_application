@@ -94,6 +94,30 @@ export const getFileUrl = (path: string | null): string | null => {
     return `${API_BASE}${path}`;
 };
 
+// Filter audio with DSP algorithms (noise, echo, music, siren)
+export interface FilterAudioResponse {
+    audio_url: string;
+}
+
+export type FilterType = 'noise' | 'echo' | 'music' | 'siren';
+
+export const filterAudio = async (
+    file: File | Blob,
+    filterType: FilterType,
+    intensity: number = 50
+): Promise<FilterAudioResponse> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('filter_type', filterType);
+    formData.append('intensity', intensity.toString());
+
+    const response = await axios.post<FilterAudioResponse>(
+        `${API_BASE}/filter-audio`,
+        formData
+    );
+    return response.data;
+};
+
 // Effect types supported by DSP backend
 export type DSPEffect =
     | 'chipmunk'

@@ -184,6 +184,100 @@ async def process_audio_endpoint(
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
+@router.post("/filter-audio")
+async def filter_audio_endpoint(
+    file: UploadFile = File(...),
+    filter_type: str = Form("noise"),
+    intensity: float = Form(50)
+):
+    """Apply audio filter with DSP algorithms."""
+    try:
+        # Save uploaded file
+        file_ext = file.filename.split(".")[-1] if "." in file.filename else "webm"
+        temp_input_path = os.path.join(TEMP_DIR, f"filter_{uuid.uuid4()}.{file_ext}")
+        
+        with open(temp_input_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        # Convert to WAV
+        try:
+            wav_path = convert_to_wav(temp_input_path)
+        except:
+            wav_path = temp_input_path
+
+        # Load audio
+        y, sr = librosa.load(wav_path)
+        
+        # Normalize intensity to 0-1
+        intensity_factor = intensity / 100.0
+
+        if filter_type == "noise":
+            # Spectral Subtraction - remove background noise
+            noise_samples = int(0.1 * sr)
+            if len(y) > noise_samples:
+                noise_profile = np.abs(np.fft.fft(y[:noise_samples]))
+                noise_estimate = np.mean(noise_profile) * intensity_factor
+                
+                Y = np.fft.fft(y)
+                magnitude = np.abs(Y)
+                phase = np.angle(Y)
+                
+                magnitude = np.maximum(magnitude - noise_estimate, 0)
+                Y_clean = magnitude * np.exp(1j * phase)
+                y = np.fft.ifft(Y_clean).real
+        
+        elif filter_type == "echo":
+            # Remove echo using delay cancellation
+            delay = 0.2  # 200ms
+            attenuation = 0.3 + (intensity_factor * 0.4)  # 0.3-0.7
+            delay_samples = int(delay * sr)
+            y_echo = np.zeros_like(y)
+            if delay_samples < len(y):
+                y_echo[delay_samples:] = y[:-delay_samples]
+            y = y - attenuation * y_echo
+        
+        elif filter_type == "music":
+            # Bandpass filter - keep only voice frequencies (300-3400Hz)
+            from scipy.signal import butter, lfilter
+            low = 300
+            high = 3400 - (intensity_factor * 1000)  # Tighter with more intensity
+            nyq = 0.5 * sr
+            low_norm = low / nyq
+            high_norm = high / nyq
+            b, a = butter(5, [low_norm, high_norm], btype='band')
+            y = lfilter(b, a, y)
+        
+        elif filter_type == "siren":
+            # Notch filter - remove specific frequency (sirens ~800Hz)
+            notch_freq = 800
+            Q = 5 + (intensity_factor * 20)  # Higher Q = narrower notch
+            from scipy.signal import iirnotch, lfilter
+            b, a = iirnotch(notch_freq, Q, sr)
+            y = lfilter(b, a, y)
+        
+        # Normalize
+        peak = np.max(np.abs(y))
+        if peak > 0:
+            y = y * (0.95 / peak)
+        
+        # Save processed audio
+        output_path = os.path.join(TEMP_DIR, f"filtered_{uuid.uuid4()}.wav")
+        sf.write(output_path, y, sr)
+        
+        # Cleanup
+        if temp_input_path != wav_path and os.path.exists(temp_input_path):
+            os.remove(temp_input_path)
+        if os.path.exists(wav_path) and wav_path != output_path:
+            os.remove(wav_path)
+        
+        final_name = os.path.basename(output_path)
+        return {"audio_url": f"/files/{final_name}"}
+    
+    except Exception as e:
+        print(f"Error filtering audio: {traceback.format_exc()}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
 @router.post("/translate")
 async def translate_endpoint(
     text: str = Form(...),
