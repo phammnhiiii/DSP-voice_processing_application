@@ -14,10 +14,18 @@ def translate_text(text: str, source_lang: str, target_lang: str) -> str:
     Returns:
         Translated text
     """
+    # Special mapping for deep_translator library
+    # Some language codes need to be converted to the format deep_translator expects
+    LANG_CODE_MAP = {
+        'zh-CN': 'chinese (simplified)',
+        'zh-TW': 'chinese (traditional)',
+        'zh': 'chinese (simplified)',
+    }
+    
     try:
-        # Map full language codes to short codes
-        source = source_lang.split('-')[0] if '-' in source_lang else source_lang
-        target = target_lang.split('-')[0] if '-' in target_lang else target_lang
+        # Map language codes for deep_translator
+        source = LANG_CODE_MAP.get(source_lang, source_lang.split('-')[0] if '-' in source_lang else source_lang)
+        target = LANG_CODE_MAP.get(target_lang, target_lang.split('-')[0] if '-' in target_lang else target_lang)
         
         translator = GoogleTranslator(source=source, target=target)
         translated = translator.translate(text)

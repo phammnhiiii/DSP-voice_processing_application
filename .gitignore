@@ -91,3 +91,6 @@ docker-compose.override.yml
 !backend/.env.example
 !README.md
 !LICENSE
+tutorials/
+/docs/README.md
+
