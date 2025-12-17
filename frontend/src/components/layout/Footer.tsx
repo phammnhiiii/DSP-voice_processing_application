@@ -12,7 +12,7 @@ const FOOTER_CONFIG = {
   description: 'Nền tảng xử lý âm thanh chuyên nghiệp. Biến đổi, lọc nhiễu và chuyển đổi giọng nói một cách dễ dàng.',
 
   // Năm bản quyền
-  copyrightYear: 2024,
+  copyrightYear: 2025,
 
   // Links mạng xã hội (thay # bằng URL thực)
   socialLinks: {
