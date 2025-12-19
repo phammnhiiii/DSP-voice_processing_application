@@ -515,7 +515,7 @@ copies or substantial portions of the Software.
 
 **⭐ Star this repository if you find it helpful!**
 
-Made with ❤️ by [Your Name/Team]
+Made with ❤️ by VUandNHI
 
 [Report Bug](https://github.com/yourusername/DSP-voice_processing_application/issues) • [Request Feature](https://github.com/yourusername/DSP-voice_processing_application/issues) • [Documentation](docs/API.md)
 
