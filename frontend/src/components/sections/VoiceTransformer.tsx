@@ -146,8 +146,22 @@ export const VoiceTransformer = () => {
 
             {/* Audio player for original audio */}
             {localAudioUrl && (
-              <div className="mt-4">
+              <div className="mt-4 space-y-2">
                 <audio controls src={localAudioUrl} className="w-full" />
+                <GlowButton
+                  onClick={() => {
+                    if (audioBlob) {
+                      const a = document.createElement('a');
+                      a.href = localAudioUrl;
+                      a.download = `recording-${Date.now()}.webm`;
+                      a.click();
+                    }
+                  }}
+                  variant="outline"
+                  className="w-full"
+                >
+                  <Download className="w-4 h-4" /> Tải Xuống
+                </GlowButton>
               </div>
             )}
 

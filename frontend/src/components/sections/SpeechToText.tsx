@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Mic, MicOff, Languages, Copy, Trash2, Loader2, Volume2 } from 'lucide-react';
+import { Mic, MicOff, Languages, Copy, Trash2, Loader2, Volume2, Download } from 'lucide-react';
 import { GlowButton } from '../ui/GlowButton';
 import { AudioVisualizer } from '../ui/AudioVisualizer';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -293,20 +293,37 @@ export const SpeechToText = () => {
             {audioUrl && !isRecording && (
               <div className="space-y-3">
                 <audio controls src={audioUrl} className="w-full" />
-                <GlowButton
-                  onClick={handleRecognize}
-                  isLoading={isProcessing}
-                  variant="secondary"
-                  className="w-full"
-                >
-                  {isProcessing ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" /> Đang nhận diện...
-                    </>
-                  ) : (
-                    'Nhận Diện Giọng Nói'
-                  )}
-                </GlowButton>
+                <div className="flex gap-2">
+                  <GlowButton
+                    onClick={() => {
+                      if (audioBlob && audioUrl) {
+                        const a = document.createElement('a');
+                        a.href = audioUrl;
+                        a.download = `recording-${Date.now()}.webm`;
+                        a.click();
+                      }
+                    }}
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                  >
+                    <Download className="w-4 h-4" /> Lưu File
+                  </GlowButton>
+                  <GlowButton
+                    onClick={handleRecognize}
+                    isLoading={isProcessing}
+                    variant="secondary"
+                    className="flex-1"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" /> Đang nhận diện...
+                      </>
+                    ) : (
+                      'Nhận Diện Giọng Nói'
+                    )}
+                  </GlowButton>
+                </div>
               </div>
             )}
           </motion.div>
