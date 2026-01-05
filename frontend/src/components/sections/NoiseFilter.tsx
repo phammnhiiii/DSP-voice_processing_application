@@ -57,7 +57,7 @@ export const NoiseFilter = () => {
   };
 
   return (
-    <section id="noise-filter" className="py-24 relative bg-gradient-to-b from-background to-card/30">
+    <section id="noise-filter" className="py-24 relative section-noise-filter noise-bg">
       <div className="container mx-auto px-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}

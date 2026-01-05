@@ -167,7 +167,7 @@ export const TextToSpeech = () => {
   };
 
   return (
-    <section id="text-to-speech" className="py-24 relative">
+    <section id="text-to-speech" className="py-24 relative section-tts noise-bg">
       <div className="container mx-auto px-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}

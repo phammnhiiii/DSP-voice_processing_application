@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 
 export const LegalSection = () => {
     return (
-        <section id="terms" className="py-16 border-t border-border/30">
+        <section id="terms" className="py-16 border-t border-border/30 section-legal noise-bg">
             <div className="container mx-auto px-6">
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}

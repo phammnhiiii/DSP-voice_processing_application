@@ -4,7 +4,7 @@ import { GlowButton } from '../ui/GlowButton';
 
 export const HeroSection = () => {
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20 bg-background">
+    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20 section-hero noise-bg">
       <div className="container mx-auto px-6 relative z-10">
         <div className="text-center max-w-4xl mx-auto">
           <motion.h1

@@ -81,7 +81,7 @@ export const VoiceTransformer = () => {
   };
 
   return (
-    <section id="transformer" className="py-24 relative">
+    <section id="transformer" className="py-24 relative section-transformer noise-bg">
       <div className="container mx-auto px-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
