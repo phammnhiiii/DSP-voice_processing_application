@@ -46,7 +46,7 @@ export const Header = () => {
           whileHover={{ scale: 1.02 }}
         >
           <Waves className="w-8 h-8 text-primary" />
-          <span className="text-xl font-bold gradient-text">VoiceLab Pro</span>
+          <span className="text-xl font-bold gradient-text">Navis Sound</span>
         </motion.a>
 
         <nav className="hidden md:flex items-center gap-8">

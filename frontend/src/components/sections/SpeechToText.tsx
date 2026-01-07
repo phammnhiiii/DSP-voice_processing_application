@@ -16,6 +16,7 @@ import {
   Voice
 } from '@/api';
 import { useToast } from '@/hooks/use-toast';
+import { downloadAsWav } from '@/lib/audioUtils';
 
 const languages = [
   { code: 'vi-VN', name: 'Tiếng Việt', shortCode: 'vi' },
@@ -297,10 +298,7 @@ export const SpeechToText = () => {
                   <GlowButton
                     onClick={() => {
                       if (audioBlob && audioUrl) {
-                        const a = document.createElement('a');
-                        a.href = audioUrl;
-                        a.download = `recording-${Date.now()}.webm`;
-                        a.click();
+                        downloadAsWav(audioBlob, `recording-${Date.now()}.wav`);
                       }
                     }}
                     variant="outline"

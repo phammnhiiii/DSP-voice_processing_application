@@ -6,7 +6,7 @@ import { Waves, Github, Twitter, Mail } from 'lucide-react';
 // ==========================================
 const FOOTER_CONFIG = {
   // Tên thương hiệu
-  brandName: 'VoiceLab Pro',
+  brandName: 'Navis Sound',
 
   // Mô tả ngắn
   description: 'Nền tảng xử lý âm thanh chuyên nghiệp. Biến đổi, lọc nhiễu và chuyển đổi giọng nói một cách dễ dàng.',

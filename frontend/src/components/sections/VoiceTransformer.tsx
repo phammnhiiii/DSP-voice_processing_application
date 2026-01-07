@@ -6,6 +6,7 @@ import { AudioVisualizer } from '../ui/AudioVisualizer';
 import { useAudioProcessor, VoiceEffect } from '@/hooks/useAudioProcessor';
 import { Switch } from '../ui/switch';
 import { Label } from '../ui/label';
+import { downloadAsWav } from '@/lib/audioUtils';
 
 // DSP effects - no emoji icons
 const effects: { id: VoiceEffect; name: string }[] = [
@@ -151,10 +152,7 @@ export const VoiceTransformer = () => {
                 <GlowButton
                   onClick={() => {
                     if (audioBlob) {
-                      const a = document.createElement('a');
-                      a.href = localAudioUrl;
-                      a.download = `recording-${Date.now()}.webm`;
-                      a.click();
+                      downloadAsWav(audioBlob, `recording-${Date.now()}.wav`);
                     }
                   }}
                   variant="outline"
