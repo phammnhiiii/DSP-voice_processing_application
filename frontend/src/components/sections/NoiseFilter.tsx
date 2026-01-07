@@ -1,12 +1,13 @@
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, Filter, Download, Volume2 } from 'lucide-react';
+import { Upload, Filter, Download, Volume2, Sparkles } from 'lucide-react';
 import { GlowButton } from '../ui/GlowButton';
 import { AudioVisualizer } from '../ui/AudioVisualizer';
 import { Slider } from '../ui/slider';
-import { filterAudio, getFileUrl, FilterType } from '@/api';
+import { filterAudio, getFileUrl, FilterType, aiDenoise } from '@/api';
 
-const filters: { id: FilterType; name: string; description: string }[] = [
+const filters: { id: FilterType | 'ai'; name: string; description: string; isAI?: boolean }[] = [
+  { id: 'ai', name: 'AI Denoise', description: 'Lọc nhiễu bằng AI (DeepFilterNet)', isAI: true },
   { id: 'noise', name: 'Lọc Nhiễu', description: 'Loại bỏ tiếng ồn nền' },
   { id: 'echo', name: 'Khử Vọng', description: 'Giảm tiếng vọng' },
   { id: 'music', name: 'Tách Nhạc', description: 'Loại bỏ âm nhạc nền' },
@@ -19,7 +20,7 @@ export const NoiseFilter = () => {
   const [processedUrl, setProcessedUrl] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [selectedFilter, setSelectedFilter] = useState<FilterType>('noise');
+  const [selectedFilter, setSelectedFilter] = useState<FilterType | 'ai'>('ai');
   const [intensity, setIntensity] = useState(50);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
 
@@ -42,9 +43,18 @@ export const NoiseFilter = () => {
     setIsProcessing(true);
 
     try {
-      // Call backend API for DSP filtering
-      const response = await filterAudio(file, selectedFilter, intensity);
-      const fullUrl = getFileUrl(response.audio_url);
+      let fullUrl: string | null = null;
+
+      if (selectedFilter === 'ai') {
+        // Use AI Denoise (DeepFilterNet)
+        const response = await aiDenoise(file);
+        fullUrl = getFileUrl(response.audio_url);
+      } else {
+        // Use DSP filter
+        const response = await filterAudio(file, selectedFilter, intensity);
+        fullUrl = getFileUrl(response.audio_url);
+      }
+
       if (fullUrl) {
         setProcessedUrl(fullUrl);
       }
@@ -115,7 +125,7 @@ export const NoiseFilter = () => {
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"
+                className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8"
               >
                 {filters.map((filter) => (
                   <motion.button
@@ -123,40 +133,45 @@ export const NoiseFilter = () => {
                     onClick={() => setSelectedFilter(filter.id)}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    className={`p-4 rounded-xl border transition-all text-left ${selectedFilter === filter.id
+                    className={`p-3 rounded-xl border transition-all text-left ${selectedFilter === filter.id
                       ? 'bg-primary/20 border-primary'
                       : 'bg-card/50 border-border hover:border-primary/50'
                       }`}
                   >
-                    <Filter className={`w-5 h-5 mb-2 ${selectedFilter === filter.id ? 'text-primary' : 'text-muted-foreground'
-                      }`} />
-                    <div className="font-medium">{filter.name}</div>
+                    {filter.isAI ? (
+                      <Sparkles className={`w-5 h-5 mb-2 ${selectedFilter === filter.id ? 'text-primary' : 'text-muted-foreground'}`} />
+                    ) : (
+                      <Filter className={`w-5 h-5 mb-2 ${selectedFilter === filter.id ? 'text-primary' : 'text-muted-foreground'}`} />
+                    )}
+                    <div className="font-medium text-sm">{filter.name}</div>
                     <div className="text-xs text-muted-foreground">{filter.description}</div>
                   </motion.button>
                 ))}
               </motion.div>
 
-              {/* Intensity Slider */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="glass-card p-6 mb-8"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <span className="font-medium flex items-center gap-2">
-                    <Volume2 className="w-4 h-4 text-primary" />
-                    Cường Độ Lọc
-                  </span>
-                  <span className="text-primary font-mono">{intensity}%</span>
-                </div>
-                <Slider
-                  value={[intensity]}
-                  onValueChange={(value) => setIntensity(value[0])}
-                  max={100}
-                  step={1}
-                  className="w-full"
-                />
-              </motion.div>
+              {/* Intensity Slider - only show for DSP filters */}
+              {selectedFilter !== 'ai' && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="glass-card p-6 mb-8"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="font-medium flex items-center gap-2">
+                      <Volume2 className="w-4 h-4 text-primary" />
+                      Cường Độ Lọc
+                    </span>
+                    <span className="text-primary font-mono">{intensity}%</span>
+                  </div>
+                  <Slider
+                    value={[intensity]}
+                    onValueChange={(value) => setIntensity(value[0])}
+                    max={100}
+                    step={1}
+                    className="w-full"
+                  />
+                </motion.div>
+              )}
 
               {/* Apply Button */}
               <div className="flex justify-center mb-8">

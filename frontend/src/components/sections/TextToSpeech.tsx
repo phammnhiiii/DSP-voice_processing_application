@@ -14,7 +14,9 @@ import {
   getVoices,
   ttsElevenLabs,
   cloneVoice,
-  Voice
+  Voice,
+  xttsCloneVoice,
+  getXTTSStatus
 } from '@/api';
 
 const languages = [
@@ -28,7 +30,7 @@ const languages = [
   { code: 'es', name: 'Español' },
 ];
 
-type TTSEngine = 'google' | 'elevenlabs';
+type TTSEngine = 'google' | 'elevenlabs' | 'xtts';
 
 export const TextToSpeech = () => {
   const [sourceText, setSourceText] = useState('');
@@ -57,13 +59,30 @@ export const TextToSpeech = () => {
   const [hasConsentedClone, setHasConsentedClone] = useState(false);
   const [showLegalModal, setShowLegalModal] = useState(false);
 
+  // XTTS states
+  const [xttsAvailable, setXttsAvailable] = useState(false);
+  const [xttsSpeakerFile, setXttsSpeakerFile] = useState<File | null>(null);
+  const xttsSpeakerInputRef = useRef<HTMLInputElement>(null);
+
 
   // Fetch ElevenLabs voices when engine changes
   useEffect(() => {
     if (ttsEngine === 'elevenlabs') {
       loadVoices();
     }
+    if (ttsEngine === 'xtts') {
+      checkXttsStatus();
+    }
   }, [ttsEngine]);
+
+  const checkXttsStatus = async () => {
+    try {
+      const status = await getXTTSStatus();
+      setXttsAvailable(status.available);
+    } catch {
+      setXttsAvailable(false);
+    }
+  };
 
   const loadVoices = async () => {
     setIsLoadingVoices(true);
@@ -124,7 +143,9 @@ export const TextToSpeech = () => {
     setIsGeneratingSource(true);
     try {
       let response;
-      if (ttsEngine === 'elevenlabs' && selectedVoice) {
+      if (ttsEngine === 'xtts' && xttsSpeakerFile) {
+        response = await xttsCloneVoice(sourceText, xttsSpeakerFile, sourceLang);
+      } else if (ttsEngine === 'elevenlabs' && selectedVoice) {
         response = await ttsElevenLabs(sourceText, selectedVoice);
       } else {
         response = await convertTextToSpeech(sourceText, sourceLang);
@@ -144,7 +165,9 @@ export const TextToSpeech = () => {
     setIsGeneratingTarget(true);
     try {
       let response;
-      if (ttsEngine === 'elevenlabs' && selectedVoice) {
+      if (ttsEngine === 'xtts' && xttsSpeakerFile) {
+        response = await xttsCloneVoice(translatedText, xttsSpeakerFile, targetLang);
+      } else if (ttsEngine === 'elevenlabs' && selectedVoice) {
         response = await ttsElevenLabs(translatedText, selectedVoice);
       } else {
         response = await convertTextToSpeech(translatedText, targetLang);
@@ -209,7 +232,16 @@ export const TextToSpeech = () => {
                   : 'bg-background border-border hover:border-primary/50'
                   }`}
               >
-                ElevenLabs (AI Voice)
+                ElevenLabs
+              </button>
+              <button
+                onClick={() => setTtsEngine('xtts')}
+                className={`px-4 py-2 rounded-lg border transition-all ${ttsEngine === 'xtts'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-background border-border hover:border-primary/50'
+                  }`}
+              >
+                XTTS
               </button>
             </div>
 
@@ -309,6 +341,77 @@ export const TextToSpeech = () => {
                   )}
                   <p className="text-xs text-muted-foreground mt-2">
                     Upload file audio 30s - 1 phút để clone giọng nói
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* XTTS Voice Cloning */}
+            {ttsEngine === 'xtts' && (
+              <div className="mt-4 space-y-4">
+                {!xttsAvailable && (
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
+                    <p className="text-sm text-red-400">
+                      XTTS không khả dụng. Vui lòng kiểm tra backend đã được khởi động chưa.
+                    </p>
+                  </div>
+                )}
+
+                {/* Clone Voice - same as ElevenLabs */}
+                <div className="border-t border-border pt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <Label>Clone Giọng Của Bạn</Label>
+                  </div>
+
+                  {/* Legal Warning */}
+                  <div className="bg-card border border-border rounded-lg p-4 mb-4">
+                    <h4 className="font-semibold mb-2">Cảnh báo pháp lý</h4>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Việc sao chép giọng nói mà không có sự đồng ý là <strong className="text-foreground">bất hợp pháp</strong>.
+                      Bạn chỉ được sử dụng giọng nói của chính mình hoặc có sự cho phép bằng văn bản.
+                    </p>
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={hasConsentedClone}
+                        onChange={(e) => setHasConsentedClone(e.target.checked)}
+                        className="w-5 h-5 mt-0.5 rounded border-border"
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        Tôi xác nhận đây là giọng nói của tôi hoặc tôi có sự đồng ý hợp pháp
+                        để sao chép giọng nói này. Tôi hiểu việc sử dụng sai mục đích có thể
+                        dẫn đến hậu quả pháp lý.
+                      </span>
+                    </label>
+                  </div>
+
+                  <div className="flex gap-2 items-end flex-wrap">
+                    <div className="flex-1 min-w-[150px]">
+                      <p className="text-sm text-muted-foreground mb-2">File giọng mẫu (6+ giây)</p>
+                      {xttsSpeakerFile && (
+                        <p className="text-sm text-green-500 mb-2">✓ {xttsSpeakerFile.name}</p>
+                      )}
+                    </div>
+                    <input
+                      type="file"
+                      accept="audio/*"
+                      ref={xttsSpeakerInputRef}
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) setXttsSpeakerFile(file);
+                      }}
+                    />
+                    <GlowButton
+                      onClick={() => xttsSpeakerInputRef.current?.click()}
+                      variant="secondary"
+                      disabled={!hasConsentedClone}
+                    >
+                      Upload
+                    </GlowButton>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Upload file audio 6+ giây để clone giọng nói
                   </p>
                 </div>
               </div>

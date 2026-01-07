@@ -201,3 +201,71 @@ export const cloneVoice = async (
     const response = await axios.post<CloneVoiceResponse>(`${API_BASE}/clone-voice`, formData);
     return response.data;
 };
+
+// ============== AI DENOISING (DeepFilterNet) ==============
+
+export interface AIDenoiseStatusResponse {
+    available: boolean;
+    sample_rate: number | null;
+    error?: string;
+}
+
+export interface AIDenoiseResponse {
+    audio_url: string;
+}
+
+// Check if AI denoising is available
+export const getAIDenoiseStatus = async (): Promise<AIDenoiseStatusResponse> => {
+    try {
+        const response = await axios.get<AIDenoiseStatusResponse>(`${API_BASE}/ai-denoise-status`);
+        return response.data;
+    } catch (error) {
+        return { available: false, sample_rate: null, error: 'Failed to check status' };
+    }
+};
+
+// Denoise audio using AI (DeepFilterNet)
+export const aiDenoise = async (file: File | Blob): Promise<AIDenoiseResponse> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await axios.post<AIDenoiseResponse>(`${API_BASE}/ai-denoise`, formData);
+    return response.data;
+};
+
+// ============== XTTS VOICE CLONING ==============
+
+export interface XTTSStatusResponse {
+    available: boolean;
+    languages: string[];
+    error?: string;
+}
+
+export interface XTTSCloneResponse {
+    audio_url: string;
+}
+
+// Check if XTTS is available
+export const getXTTSStatus = async (): Promise<XTTSStatusResponse> => {
+    try {
+        const response = await axios.get<XTTSStatusResponse>(`${API_BASE}/xtts-status`);
+        return response.data;
+    } catch (error) {
+        return { available: false, languages: [], error: 'Failed to check status' };
+    }
+};
+
+// Clone voice using XTTS
+export const xttsCloneVoice = async (
+    text: string,
+    speakerFile: File | Blob,
+    language: string = 'vi'
+): Promise<XTTSCloneResponse> => {
+    const formData = new FormData();
+    formData.append('text', text);
+    formData.append('speaker_file', speakerFile);
+    formData.append('language', language);
+
+    const response = await axios.post<XTTSCloneResponse>(`${API_BASE}/xtts-clone`, formData);
+    return response.data;
+};

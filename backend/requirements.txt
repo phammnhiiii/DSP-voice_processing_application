@@ -20,5 +20,15 @@ gTTS>=2.4.0
 python-dotenv>=1.0.0
 requests>=2.31.0
 
-# Translation (optional)
-# googletrans==4.0.0-rc1
+# AI Models (New)
+# DeepFilterNet for Audio Denoising
+deepfilternet>=0.5.6
+
+# Coqui TTS for Voice Cloning
+TTS>=0.22.0
+bangla>=0.0.2
+
+# PyTorch (Specific versions for Mac/XTTS compatibility)
+torch>=2.5.1,<2.6.0
+torchaudio>=2.5.1,<2.6.0
+transformers>=4.42.4,<4.43.0

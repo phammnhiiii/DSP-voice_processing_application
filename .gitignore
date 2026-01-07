@@ -94,3 +94,5 @@ docker-compose.override.yml
 tutorials/
 /docs/README.md
 
+
+venv_old/

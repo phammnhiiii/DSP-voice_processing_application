@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Mic, MicOff, Languages, Copy, Trash2, Loader2, Volume2, Download } from 'lucide-react';
+import { Mic, MicOff, Languages, Copy, Trash2, Loader2, Volume2, Download, Upload } from 'lucide-react';
 import { GlowButton } from '../ui/GlowButton';
 import { AudioVisualizer } from '../ui/AudioVisualizer';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -13,7 +13,9 @@ import {
   getFileUrl,
   getVoices,
   ttsElevenLabs,
-  Voice
+  Voice,
+  xttsCloneVoice,
+  getXTTSStatus
 } from '@/api';
 import { useToast } from '@/hooks/use-toast';
 import { downloadAsWav } from '@/lib/audioUtils';
@@ -44,10 +46,16 @@ export const SpeechToText = () => {
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
 
   // ElevenLabs TTS for translated text
-  const [ttsEngine, setTtsEngine] = useState<'google' | 'elevenlabs'>('google');
+  const [ttsEngine, setTtsEngine] = useState<'google' | 'elevenlabs' | 'xtts'>('google');
   const [voices, setVoices] = useState<Voice[]>([]);
   const [selectedVoice, setSelectedVoice] = useState('');
   const [isLoadingVoices, setIsLoadingVoices] = useState(false);
+
+  // XTTS states
+  const [xttsAvailable, setXttsAvailable] = useState(false);
+  const [xttsSpeakerFile, setXttsSpeakerFile] = useState<File | null>(null);
+  const [hasConsentedClone, setHasConsentedClone] = useState(false);
+  const xttsSpeakerInputRef = useRef<HTMLInputElement>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -61,7 +69,19 @@ export const SpeechToText = () => {
     if (ttsEngine === 'elevenlabs' && voices.length === 0) {
       loadVoices();
     }
+    if (ttsEngine === 'xtts') {
+      checkXttsStatus();
+    }
   }, [ttsEngine]);
+
+  const checkXttsStatus = async () => {
+    try {
+      const status = await getXTTSStatus();
+      setXttsAvailable(status.available);
+    } catch {
+      setXttsAvailable(false);
+    }
+  };
 
   const loadVoices = async () => {
     setIsLoadingVoices(true);
@@ -177,7 +197,9 @@ export const SpeechToText = () => {
       setIsGeneratingAudio(true);
       try {
         let ttsResponse;
-        if (ttsEngine === 'elevenlabs' && selectedVoice) {
+        if (ttsEngine === 'xtts' && xttsSpeakerFile) {
+          ttsResponse = await xttsCloneVoice(response.translated_text, xttsSpeakerFile, targetLang);
+        } else if (ttsEngine === 'elevenlabs' && selectedVoice) {
           ttsResponse = await ttsElevenLabs(response.translated_text, selectedVoice);
         } else {
           ttsResponse = await convertTextToSpeech(response.translated_text, targetLang);
@@ -428,7 +450,60 @@ export const SpeechToText = () => {
                   </GlowButton>
                 </>
               )}
+
+              <button
+                onClick={() => setTtsEngine('xtts')}
+                className={`px-3 py-1 text-sm rounded-lg border transition-all ${ttsEngine === 'xtts'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-background border-border hover:border-primary/50'
+                  }`}
+              >
+                XTTS
+              </button>
             </div>
+
+            {/* XTTS Settings */}
+            {ttsEngine === 'xtts' && (
+              <div className="mb-4 space-y-3 bg-card/50 p-4 rounded-lg border border-border">
+                {!xttsAvailable && (
+                  <p className="text-xs text-red-400">XTTS không khả dụng. Kiểm tra backend.</p>
+                )}
+
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={hasConsentedClone}
+                      onChange={(e) => setHasConsentedClone(e.target.checked)}
+                      className="rounded border-border"
+                    />
+                    <span className="text-muted-foreground">Đồng ý clone giọng</span>
+                  </label>
+
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="file"
+                      accept="audio/*"
+                      ref={xttsSpeakerInputRef}
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) setXttsSpeakerFile(file);
+                      }}
+                    />
+                    <GlowButton
+                      onClick={() => xttsSpeakerInputRef.current?.click()}
+                      variant="secondary"
+                      size="sm"
+                      disabled={!hasConsentedClone}
+                    >
+                      <Upload className="w-3 h-3" /> Upload Mẫu
+                    </GlowButton>
+                    {xttsSpeakerFile && <span className="text-xs text-green-500">✓ {xttsSpeakerFile.name}</span>}
+                  </div>
+                </div>
+              </div>
+            )}
 
             <Textarea
               value={translatedText}

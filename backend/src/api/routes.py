@@ -400,3 +400,133 @@ async def clone_voice_endpoint(
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+
+# ============== AI DENOISING (DeepFilterNet) ==============
+
+@router.get("/ai-denoise-status")
+async def ai_denoise_status():
+    """Check if AI denoising (DeepFilterNet) is available."""
+    try:
+        from src.utils.ai_denoiser import get_ai_denoiser
+        denoiser = get_ai_denoiser()
+        return {
+            "available": denoiser.is_available(),
+            "sample_rate": denoiser.sample_rate if denoiser.is_available() else None
+        }
+    except Exception as e:
+        return {"available": False, "error": str(e)}
+
+
+@router.post("/ai-denoise")
+async def ai_denoise_endpoint(file: UploadFile = File(...)):
+    """Denoise audio using AI (DeepFilterNet)."""
+    try:
+        from src.utils.ai_denoiser import get_ai_denoiser
+        
+        denoiser = get_ai_denoiser()
+        if not denoiser.is_available():
+            return JSONResponse(
+                status_code=503, 
+                content={"error": "AI Denoiser not available. DeepFilterNet may not be installed."}
+            )
+        
+        # Save uploaded file
+        file_ext = file.filename.split(".")[-1] if "." in file.filename else "webm"
+        temp_input_path = os.path.join(TEMP_DIR, f"ai_denoise_input_{uuid.uuid4()}.{file_ext}")
+        
+        with open(temp_input_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Convert to WAV
+        try:
+            wav_path = convert_to_wav(temp_input_path)
+        except:
+            wav_path = temp_input_path
+        
+        # Apply AI denoising
+        output_name = f"ai_denoised_{uuid.uuid4()}.wav"
+        output_path = os.path.join(TEMP_DIR, output_name)
+        
+        denoiser.denoise(wav_path, output_path)
+        
+        # Cleanup temp files
+        for f in [temp_input_path, wav_path]:
+            if f and os.path.exists(f) and f != output_path:
+                try:
+                    os.remove(f)
+                except:
+                    pass
+        
+        return {"audio_url": f"/files/{output_name}"}
+        
+    except Exception as e:
+        print(f"AI Denoise error: {traceback.format_exc()}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+# ============== XTTS VOICE CLONING ==============
+
+@router.get("/xtts-status")
+async def xtts_status():
+    """Check if XTTS voice cloning is available."""
+    try:
+        from src.utils.voice_cloner import get_voice_cloner, XTTS_ERROR
+        cloner = get_voice_cloner()
+        return {
+            "available": cloner.is_available(),
+            "languages": cloner.get_supported_languages() if cloner.is_available() else [],
+            "error": XTTS_ERROR if not cloner.is_available() else None
+        }
+    except Exception as e:
+        return {"available": False, "error": str(e)}
+
+
+@router.post("/xtts-clone")
+async def xtts_clone_endpoint(
+    text: str = Form(...),
+    language: str = Form("vi"),
+    speaker_file: UploadFile = File(...)
+):
+    """Clone voice using XTTS and generate speech."""
+    try:
+        from src.utils.voice_cloner import get_voice_cloner
+        
+        cloner = get_voice_cloner()
+        if not cloner.is_available():
+            return JSONResponse(
+                status_code=503, 
+                content={"error": "XTTS not available. TTS package may not be installed."}
+            )
+        
+        # Save uploaded speaker file
+        file_ext = speaker_file.filename.split(".")[-1] if "." in speaker_file.filename else "wav"
+        speaker_path = os.path.join(TEMP_DIR, f"speaker_{uuid.uuid4()}.{file_ext}")
+        
+        with open(speaker_path, "wb") as buffer:
+            shutil.copyfileobj(speaker_file.file, buffer)
+        
+        # Convert to WAV if needed
+        try:
+            wav_speaker = convert_to_wav(speaker_path)
+        except:
+            wav_speaker = speaker_path
+        
+        # Generate cloned voice
+        output_name = f"xtts_cloned_{uuid.uuid4()}.wav"
+        output_path = os.path.join(TEMP_DIR, output_name)
+        
+        cloner.clone_voice(text, wav_speaker, language, output_path)
+        
+        # Cleanup
+        for f in [speaker_path, wav_speaker]:
+            if f and os.path.exists(f) and f != output_path:
+                try:
+                    os.remove(f)
+                except:
+                    pass
+        
+        return {"audio_url": f"/files/{output_name}"}
+        
+    except Exception as e:
+        print(f"XTTS Clone error: {traceback.format_exc()}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
