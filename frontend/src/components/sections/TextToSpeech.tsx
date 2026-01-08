@@ -241,7 +241,7 @@ export const TextToSpeech = () => {
                   : 'bg-background border-border hover:border-primary/50'
                   }`}
               >
-                XTTS
+                Voice Clone
               </button>
             </div>
 
@@ -360,7 +360,13 @@ export const TextToSpeech = () => {
                 {/* Clone Voice - same as ElevenLabs */}
                 <div className="border-t border-border pt-4">
                   <div className="flex items-center justify-between mb-3">
-                    <Label>Clone Giọng Của Bạn</Label>
+                    <Label className="font-sans text-sm font-medium text-foreground">Clone Giọng Của Bạn</Label>
+                    <button
+                      onClick={() => setShowLegalModal(true)}
+                      className="font-sans text-xs text-gray-500 dark:text-gray-400 hover:text-primary transition-colors"
+                    >
+                      Điều khoản pháp lý
+                    </button>
                   </div>
 
                   {/* Legal Warning */}
